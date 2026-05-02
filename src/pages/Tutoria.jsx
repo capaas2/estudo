@@ -83,6 +83,8 @@ ${r.conteudo_complementar ? `<h1>📝 Conteúdo Complementar (o que faltou)</h1>
 
 ${r.recomendacoes?.length ? `<h2>💡 Recomendações</h2><ul>${r.recomendacoes.map(c => `<li>${c}</li>`).join('')}</ul>` : ''}
 
+${r.questoes_consolidadas?.length ? `<h2>❓ Questões Práticas Extraídas</h2><div class="section">${r.questoes_consolidadas.map((q, i) => `<div style="margin-bottom: 20px;"><strong>Questão ${i + 1}:</strong> ${q.enunciado}<br>${q.alternativas?.length ? `<ul style="list-style-type: none; padding-left: 0;">${q.alternativas.map(alt => `<li>${alt}</li>`).join('')}</ul>` : ''}<em><strong>Gabarito / Comentário:</strong> ${q.gabarito}</em></div>`).join('<hr style="border:0;border-top:1px dashed #ccc;margin:16px 0;">')}</div>` : ''}
+
 <div class="footer">Gerado automaticamente por StudyPro com IA</div>
 </body></html>`
 
@@ -217,9 +219,34 @@ ${r.recomendacoes?.length ? `<h2>💡 Recomendações</h2><ul>${r.recomendacoes.
             )}
 
             {resultado.recomendacoes?.length > 0 && (
-              <div className="card" style={{ borderLeft: '4px solid var(--accent-violet)' }}>
+              <div className="card" style={{ borderLeft: '4px solid var(--accent-violet)', marginBottom: 16 }}>
                 <h4 style={{ color: 'var(--accent-violet)', marginBottom: 12 }}>💡 Recomendações</h4>
                 <ul style={{ paddingLeft: 16 }}>{resultado.recomendacoes.map((c, i) => <li key={i} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{c}</li>)}</ul>
+              </div>
+            )}
+
+            {resultado.questoes_consolidadas?.length > 0 && (
+              <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
+                <h3 style={{ color: 'var(--primary)', marginBottom: 12 }}>❓ Questões Práticas Extraídas</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>Questões encontradas nos documentos sem repetições:</p>
+                <div style={{ background: 'var(--bg-tertiary)', borderRadius: 8, padding: 16 }}>
+                  {resultado.questoes_consolidadas.map((q, i) => (
+                    <div key={i} style={{ marginBottom: i !== resultado.questoes_consolidadas.length - 1 ? 20 : 0, paddingBottom: i !== resultado.questoes_consolidadas.length - 1 ? 20 : 0, borderBottom: i !== resultado.questoes_consolidadas.length - 1 ? '1px dashed var(--border-color)' : 'none' }}>
+                      <p style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: 8 }}>Questão {i + 1}: <span style={{ fontWeight: 400 }}>{q.enunciado}</span></p>
+                      {q.alternativas?.length > 0 && (
+                        <ul style={{ listStyleType: 'none', paddingLeft: 0, marginBottom: 12 }}>
+                          {q.alternativas.map((alt, j) => (
+                            <li key={j} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 4, padding: '4px 8px', background: 'var(--bg-secondary)', borderRadius: 4 }}>{alt}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderRadius: 6, borderLeft: '3px solid var(--success)' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--success)' }}>Gabarito / Comentário:</span>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 4 }}>{q.gabarito}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

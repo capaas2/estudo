@@ -100,7 +100,7 @@ Responda APENAS em JSON válido com este formato:
   const resp = await callIA([
     { role: 'system', content: 'Você é um professor corretor rigoroso. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
   return parsed || { subitens: [], nota_total: 0, feedback_geral: resp }
@@ -129,7 +129,7 @@ Responda em JSON:
   const resp = await callIA([
     { role: 'system', content: 'Você é um analista educacional. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
   return parsed || { pontos_fracos: [], recomendacoes: [resp], analise_tempo: '', tendencia: '' }
@@ -156,7 +156,7 @@ Responda em JSON:
   const resp = await callIA([
     { role: 'system', content: 'Você é um tutor educacional. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
   return parsed || { pontos_fracos: [], tendencia: resp, velocidade_vs_precisao: '', prioridades: [], dica_do_dia: '' }
@@ -210,16 +210,25 @@ Faça uma análise COMPLETA e responda em JSON:
   "redundancias": ["conteúdos repetidos entre documentos"],
   "conteudo_consolidado": "TEXTO LONGO: consolide aqui um resumo unificado com as melhores partes de TODOS os documentos, organizado por tópicos. Este será o material de estudo final do aluno. Use markdown com títulos, subtítulos e listas.",
   "conteudo_complementar": "TEXTO LONGO: gere aqui o conteúdo que faltou nos PDFs mas que o aluno precisa estudar, baseado nas lacunas identificadas. Use markdown.",
-  "recomendacoes": ["lista de recomendações de estudo"]
-}`
+  "recomendacoes": ["lista de recomendações de estudo"],
+  "questoes_consolidadas": [
+    {
+      "enunciado": "texto da questão encontrada nos materiais",
+      "alternativas": ["opcional: a) texto", "b) texto"],
+      "gabarito": "resposta esperada ou comentário"
+    }
+  ]
+}
+
+Instrução Importante: Extraia as questões encontradas nos PDFs (se houver), unindo-as e removendo duplicatas ou questões repetidas entre os documentos. Caso encontre questões sem resposta, gere um gabarito ou comentário educativo para elas.`
 
   const resp = await callIA([
     { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
-  return parsed || { analise_geral: resp, documento_mais_completo: null, ranking_documentos: [], conteudos_identificados: [], lacunas: [], redundancias: [], conteudo_consolidado: '', conteudo_complementar: '', recomendacoes: [] }
+  return parsed || { analise_geral: resp, documento_mais_completo: null, ranking_documentos: [], conteudos_identificados: [], lacunas: [], redundancias: [], conteudo_consolidado: '', conteudo_complementar: '', recomendacoes: [], questoes_consolidadas: [] }
 }
 
 export async function gerarSimuladoAutomatico(errosAnteriores, questoesDisponiveis) {
@@ -237,7 +246,7 @@ Responda em JSON: { "questao_ids": ["id1", "id2", ...], "justificativa": "texto"
   const resp = await callIA([
     { role: 'system', content: 'Você é um organizador de estudos. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
   return parsed || { questao_ids: questoesDisponiveis.slice(0, 10).map(q => q.id), justificativa: 'Seleção padrão' }
@@ -284,7 +293,7 @@ O JSON deve seguir este formato exato:
   const resp = await callIA([
     { role: 'system', content: 'You are a data extraction API that strictly outputs valid JSON. You DO NOT output any text before or after the JSON. You DO NOT think aloud or explain your reasoning. Start your response with { and end with }.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   console.log('--- RESPOSTA RAW DA IA (QUESTÕES) ---')
   console.log(resp)
@@ -335,7 +344,7 @@ Responda em JSON:
   const resp = await callIA([
     { role: 'system', content: 'Você é um professor universitário especialista. Determine gabaritos com precisão científica. Sempre responda em português do Brasil. Responda APENAS JSON válido.' },
     { role: 'user', content: prompt }
-  ])
+  ], true)
 
   const parsed = extrairJSON(resp)
   return parsed || { gabarito: '', explicacao: resp, subitens: [] }
