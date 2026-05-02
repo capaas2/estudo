@@ -179,12 +179,18 @@ ${r.questoes_consolidadas?.length ? `<h2>❓ Questões Práticas Extraídas</h2>
               <div className="card" style={{ marginBottom: 16 }}>
                 <h3 className="card-title" style={{ marginBottom: 12 }}>📊 Ranking dos Documentos</h3>
                 {resultado.ranking_documentos.map((d, i) => (
-                  <div key={i} className="flex-between" style={{ padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 6 }}>
-                    <div className="flex-row gap-8">
-                      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: i === 0 ? 'var(--warning)' : 'var(--bg-primary)', color: i === 0 ? '#000' : 'var(--text-muted)', fontWeight: 700, fontSize: '0.8rem' }}>{i + 1}</span>
-                      <div><p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{d.nome}</p><p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.motivo}</p></div>
+                  <div key={i} className="flex-between" style={{ padding: '10px 14px', background: 'var(--bg-tertiary)', borderRadius: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                    <div className="flex-row gap-8" style={{ alignItems: 'flex-start' }}>
+                      <span style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: i === 0 ? 'var(--warning)' : 'var(--bg-primary)', color: i === 0 ? '#000' : 'var(--text-muted)', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{i + 1}</span>
+                      <div>
+                        <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 4 }}>{d.nome}</p>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>{d.motivo}</p>
+                        {d.faltou && (
+                          <p style={{ fontSize: '0.75rem', color: 'var(--error)' }}><strong>Faltou:</strong> {d.faltou}</p>
+                        )}
+                      </div>
                     </div>
-                    <span className="badge badge-cyan" style={{ fontWeight: 700, fontSize: '0.9rem' }}>{d.nota}/10</span>
+                    <span className="badge badge-cyan" style={{ fontWeight: 700, fontSize: '0.9rem', flexShrink: 0 }}>{d.nota}/10</span>
                   </div>
                 ))}
               </div>

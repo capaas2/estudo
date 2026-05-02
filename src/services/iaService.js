@@ -1,21 +1,29 @@
-const GEMINI_API_KEY = 'AIzaSyBfWoxJkgcgfRoYjve2fmFLKjsaSjc2drg'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
-
-const OPENROUTER_API_KEY = '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'
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+// As chaves da API agora ficam no backend (pasta /api) para segurança.
+const GEMINI_URL = `/api/gemini`
+const OPENROUTER_URL = '/api/openrouter'
 function extrairJSON(text) {
+  // Limpeza de erros comuns de LLMs
+  let cleaned = text.trim();
+  // Se o LLM retornou um array com chaves (ex: ["chave": "valor"]), tenta trocar para objeto
+  if (cleaned.startsWith('[') && cleaned.endsWith(']') && cleaned.includes('":')) {
+    cleaned = '{' + cleaned.slice(1, -1) + '}';
+  }
+
   // Tenta parse direto
-  try { return JSON.parse(text) } catch {}
+  try { return JSON.parse(cleaned) } catch {}
+  
   // Tenta encontrar JSON dentro do texto (entre { e })
-  const match = text.match(/\{[\s\S]*\}/)
+  const match = cleaned.match(/\{[\s\S]*\}/)
   if (match) {
     try { return JSON.parse(match[0]) } catch {}
   }
+  
   // Tenta entre ```json e ```
-  const codeMatch = text.match(/```json?\s*([\s\S]*?)```/)
+  const codeMatch = cleaned.match(/```json?\s*([\s\S]*?)```/)
   if (codeMatch) {
     try { return JSON.parse(codeMatch[1]) } catch {}
   }
+  
   return null
 }
 
@@ -77,49 +85,70 @@ async function callIA(messages, jsonMode = false, maxTokens = 32768) {
   }
 }
 
-async function callOpenRouterIA(messages, jsonMode = false, maxTokens = 256000) {
-  try {
-    const body = {
-      // O modelo precisa suportar o limite de tokens que você quer
-      model: "nvidia/nemotron-3-super-120b-a12b-20230311:free", // Modelo da NVIDIA conforme testado anteriormente
-      messages: messages,
-      temperature: 0.3,
-      // Passando o limite solicitado de 256k tokens:
-      // (Nota: em muitas APIs, 'max_tokens' limita a saída. Se houver erro de limite, considere omitir ou diminuir esse valor)
-      max_tokens: maxTokens 
-    };
+async function callOpenRouterIA(messages, jsonMode = false, maxTokens = 8000) {
+  // Lista de modelos com grande janela de contexto e alta capacidade para uso gratuito (fallback em caso de 429/rate-limit)
+  const fallbackModels = [
+    "google/gemma-4-31b-it:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "inclusionai/ling-2.6-1t:free",
+    "tencent/hy3-preview:free",
+    "openrouter/free"
+  ];
 
-    if (jsonMode) {
-      body.response_format = { type: "json_object" };
+  let lastError;
+
+  for (const modelId of fallbackModels) {
+    try {
+      console.log(`[OpenRouter] Tentando análise com o modelo: ${modelId}`);
+      const body = {
+        model: modelId,
+        messages: messages,
+        temperature: 0.3,
+        // Passando o limite solicitado de 256k tokens:
+        max_tokens: maxTokens 
+      };
+
+      if (jsonMode) {
+        body.response_format = { type: "json_object" };
+      }
+
+      const res = await fetch(OPENROUTER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.warn(`[OpenRouter] Falha no modelo ${modelId} (Status ${res.status}): ${errBody}. Tentando próximo modelo...`);
+        lastError = new Error(`Erro OpenRouter no modelo ${modelId}: ${res.status}`);
+        continue; // Passa para o próximo modelo da lista
+      }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      
+      if (!content) {
+        console.warn(`[OpenRouter] Resposta vazia no modelo ${modelId}. Tentando próximo...`);
+        lastError = new Error(`Resposta vazia no modelo ${modelId}`);
+        continue;
+      }
+      
+      console.log(`[OpenRouter] Análise concluída com sucesso usando o modelo: ${modelId}`);
+      return content;
+      
+    } catch (err) {
+      console.warn(`[OpenRouter] Erro de rede/timeout no modelo ${modelId}:`, err.message);
+      lastError = err;
+      // Continua para o próximo modelo em caso de falha de requisição
     }
-
-    const res = await fetch(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      console.error('Erro OpenRouter response:', res.status, errBody);
-      throw new Error(`Erro OpenRouter: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    
-    if (!content) {
-      console.error('Resposta OpenRouter vazia:', data);
-      throw new Error('Resposta do OpenRouter vazia');
-    }
-    return content;
-  } catch (err) {
-    console.error('Erro ao chamar OpenRouter:', err);
-    throw err;
   }
+
+  // Se esgotou todos os modelos
+  console.error('Erro fatal ao chamar OpenRouter: Todos os modelos de fallback falharam.');
+  throw lastError;
 }
 
 export async function corrigirDiscursiva(enunciado, subitens, respostasUsuario) {
@@ -246,7 +275,9 @@ ${conteudosEsperados}
 CONTEÚDO DOS DOCUMENTOS:
 ${resumos}
 
-Faça uma análise COMPLETA e responda em JSON:
+Faça uma análise COMPLETA e responda OBRIGATORIAMENTE com um OBJETO JSON VÁLIDO.
+INICIE A SUA RESPOSTA COM A CHAVE { E TERMINE COM }. NÃO COMECE COM COCHETES [.
+
 {
   "analise_geral": "análise detalhada da qualidade geral dos materiais",
   "documento_mais_completo": {
@@ -254,7 +285,7 @@ Faça uma análise COMPLETA e responda em JSON:
     "justificativa": "por que este é o mais completo"
   },
   "ranking_documentos": [
-    {"nome": "nome.pdf", "nota": 9, "motivo": "cobertura ampla de..."}
+    {"nome": "nome.pdf", "nota": 9, "motivo": "cobertura ampla de...", "faltou": "resumo do que faltou especificamente neste documento em relação aos conteúdos esperados"}
   ],
   "conteudos_identificados": ["lista de conteúdos encontrados nos PDFs"],
   "lacunas": ["conteúdos esperados que NÃO foram encontrados em nenhum PDF"],
@@ -275,12 +306,13 @@ Instrução Importante: Extraia as questões encontradas nos PDFs (se houver), u
 
 REGRAS CRÍTICAS DE FORMATAÇÃO JSON:
 1. NUNCA use aspas duplas (") dentro do texto dos campos. Se precisar destacar algo, use aspas simples (') ou markdown (como **negrito**).
-2. O texto não deve ser interrompido abruptamente. Certifique-se de concluir todo o JSON validamente.`
+2. O JSON deve ser um OBJETO começando com '{' e não um array.
+3. O texto não deve ser interrompido abruptamente. Certifique-se de concluir todo o JSON validamente.`
 
   const resp = await callOpenRouterIA([
-    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas JSON VÁLIDO e evite aspas duplas nos textos.' },
+    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas um OBJETO JSON VÁLIDO começando com { e evite aspas duplas nos textos.' },
     { role: 'user', content: prompt }
-  ], true, 256000)
+  ], true, 8000)
 
   const parsed = extrairJSON(resp)
   if (!parsed || !parsed.analise_geral) {
