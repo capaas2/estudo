@@ -177,7 +177,7 @@ Responda APENAS em JSON válido com este formato:
   "feedback_geral": "texto"
 }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um professor corretor rigoroso. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
   ], true)
@@ -206,7 +206,7 @@ Responda em JSON:
   "dificuldades_detectadas": ["questões com dificuldade"]
 }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um analista educacional. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
   ], true)
@@ -233,7 +233,7 @@ Responda em JSON:
   "dica_do_dia": "uma dica motivacional e prática"
 }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um tutor educacional. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
   ], true)
@@ -252,7 +252,7 @@ Gabarito: ${questao.gabarito}` : `Subitens: ${questao.subitens?.map(s => `${s.le
 
 Sugira melhorias claras e específicas.`
 
-  return await callIA([
+  return await callOpenRouterIA([
     { role: 'system', content: 'Você é um especialista em elaboração de questões. Sempre responda em português do Brasil.' },
     { role: 'user', content: prompt }
   ])
@@ -278,6 +278,9 @@ ${resumos}
 Faça uma análise COMPLETA e responda OBRIGATORIAMENTE com um OBJETO JSON VÁLIDO.
 INICIE A SUA RESPOSTA COM A CHAVE { E TERMINE COM }. NÃO COMECE COM COCHETES [.
 
+MUITO IMPORTANTE: Na lista "conteudos_identificados", para cada conteúdo você DEVE escrever entre parênteses o nome exato do documento onde ele foi encontrado.
+
+Formato esperado:
 {
   "analise_geral": "análise detalhada da qualidade geral dos materiais",
   "documento_mais_completo": {
@@ -287,7 +290,7 @@ INICIE A SUA RESPOSTA COM A CHAVE { E TERMINE COM }. NÃO COMECE COM COCHETES [.
   "ranking_documentos": [
     {"nome": "nome.pdf", "nota": 9, "motivo": "cobertura ampla de...", "faltou": "resumo do que faltou especificamente neste documento em relação aos conteúdos esperados"}
   ],
-  "conteudos_identificados": ["lista de conteúdos encontrados nos PDFs"],
+  "conteudos_identificados": ["Nome do conteúdo (Encontrado em: nome_do_arquivo.pdf)"],
   "lacunas": ["conteúdos esperados que NÃO foram encontrados em nenhum PDF"],
   "redundancias": ["conteúdos repetidos entre documentos"],
   "conteudo_consolidado": "TEXTO LONGO: consolide aqui um resumo unificado com as melhores partes de TODOS os documentos, organizado por tópicos. Este será o material de estudo final do aluno. Use markdown com títulos, subtítulos e listas.",
@@ -345,7 +348,7 @@ ${questoesDisponiveis.map(q => `- ID: ${q.id} | Tema: ${q.tema} | Dificuldade: $
 Selecione até 10 questões priorizando os temas com mais erros.
 Responda em JSON: { "questao_ids": ["id1", "id2", ...], "justificativa": "texto" }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um organizador de estudos. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
     { role: 'user', content: prompt }
   ], true)
@@ -392,10 +395,10 @@ O JSON deve seguir este formato exato:
   "observacoes": ""
 }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'You are a data extraction API that strictly outputs valid JSON. You DO NOT output any text before or after the JSON. You DO NOT think aloud or explain your reasoning. Start your response with { and end with }.' },
     { role: 'user', content: prompt }
-  ], true)
+  ], true, 16000)
 
   console.log('--- RESPOSTA RAW DA IA (QUESTÕES) ---')
   console.log(resp)
@@ -443,7 +446,7 @@ Responda em JSON:
   "explicacao": "visão geral da questão e pontos-chave"
 }`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um professor universitário especialista. Determine gabaritos com precisão científica. Sempre responda em português do Brasil. Responda APENAS JSON válido.' },
     { role: 'user', content: prompt }
   ], true)
