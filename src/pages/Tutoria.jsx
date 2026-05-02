@@ -4,6 +4,21 @@ import { analisarPDFs } from '../services/iaService'
 import { extrairTextoPDF } from '../services/pdfService'
 import { Upload, FileText, X, Sparkles, Download, Trophy, AlertTriangle, BookOpen, Star } from 'lucide-react'
 
+function mdToHtml(text) {
+  if (!text) return ''
+  return text
+    .replace(/\\n/g, '\n')
+    .replace(/^### (.+)$/gm, '<h4 style="color:#3a7bc8;margin:18px 0 8px;">$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3 style="color:#2d5f8a;margin:22px 0 10px;">$1</h3>')
+    .replace(/^# (.+)$/gm, '<h2 style="color:#1e3a5f;margin:26px 0 12px;">$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^[-•] (.+)$/gm, '<li style="margin-bottom:4px;">$1</li>')
+    .replace(/(<li[^>]*>.*<\/li>\n?)+/g, (m) => `<ul style="padding-left:20px;margin:8px 0;">${m}</ul>`)
+    .replace(/\n{2,}/g, '<br><br>')
+    .replace(/\n/g, '<br>')
+}
+
 export default function Tutoria() {
   const toast = useToast()
   const [arquivos, setArquivos] = useState([])
@@ -76,9 +91,9 @@ ${r.lacunas?.length ? `<div class="lacuna"><h3>⚠️ Lacunas — Conteúdos NÃ
 
 ${r.redundancias?.length ? `<h2>🔁 Redundâncias entre Documentos</h2><ul>${r.redundancias.map(c => `<li>${c}</li>`).join('')}</ul>` : ''}
 
-${r.conteudo_consolidado ? `<h1>📖 Conteúdo Consolidado</h1><div class="section">${r.conteudo_consolidado.replace(/\n/g, '<br>').replace(/## (.*)/g, '<h3>$1</h3>').replace(/# (.*)/g, '<h2>$1</h2>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>` : ''}
+${r.conteudo_consolidado ? `<h1>📖 Conteúdo Consolidado</h1><div class="section">${mdToHtml(r.conteudo_consolidado)}</div>` : ''}
 
-${r.conteudo_complementar ? `<h1>📝 Conteúdo Complementar (o que faltou)</h1><div class="lacuna">${r.conteudo_complementar.replace(/\n/g, '<br>').replace(/## (.*)/g, '<h3>$1</h3>').replace(/# (.*)/g, '<h2>$1</h2>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>` : ''}
+${r.conteudo_complementar ? `<h1>📝 Conteúdo Complementar (o que faltou)</h1><div class="lacuna">${mdToHtml(r.conteudo_complementar)}</div>` : ''}
 
 ${r.recomendacoes?.length ? `<h2>💡 Recomendações</h2><ul>${r.recomendacoes.map(c => `<li>${c}</li>`).join('')}</ul>` : ''}
 
@@ -200,9 +215,8 @@ ${r.questoes_consolidadas?.length ? `<h2>❓ Questões Práticas Extraídas</h2>
               <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid var(--accent-cyan)' }}>
                 <h3 style={{ color: 'var(--accent-cyan)', marginBottom: 12 }}>📖 Conteúdo Consolidado</h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>As melhores partes de todos os documentos, unificadas:</p>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-                  {resultado.conteudo_consolidado}
-                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7, maxHeight: 400, overflow: 'auto', padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}
+                  dangerouslySetInnerHTML={{ __html: mdToHtml(resultado.conteudo_consolidado) }} />
               </div>
             )}
 
@@ -211,9 +225,8 @@ ${r.questoes_consolidadas?.length ? `<h2>❓ Questões Práticas Extraídas</h2>
               <div className="card" style={{ marginBottom: 16, borderLeft: '4px solid var(--error)' }}>
                 <h3 style={{ color: 'var(--error)', marginBottom: 12 }}>📝 Conteúdo que Faltou</h3>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 12 }}>Gerado pela IA para complementar as lacunas:</p>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 400, overflow: 'auto', padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-                  {resultado.conteudo_complementar}
-                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.7, maxHeight: 400, overflow: 'auto', padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}
+                  dangerouslySetInnerHTML={{ __html: mdToHtml(resultado.conteudo_complementar) }} />
               </div>
             )}
 
