@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { gerarSimuladoAutomatico } from '../services/iaService'
 import { Plus, Zap, Filter, Check } from 'lucide-react'
 
@@ -9,6 +10,7 @@ export default function CriarSimulado() {
   const { materiaId } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   const [materias, setMaterias] = useState([])
   const [subtemas, setSubtemas] = useState([])
   const [questoes, setQuestoes] = useState([])
@@ -98,6 +100,7 @@ export default function CriarSimulado() {
         subtema_ids: form.subtema_id ? [form.subtema_id] : [],
         tipo: form.tipo, questao_ids: form.selecionadas,
         cronometro_visivel: form.cronometro_visivel,
+        user_id: user.id,
         nota_maxima: form.selecionadas.reduce((acc, id) => {
           const q = questoes.find(x => x.id === id)
           return acc + (q?.peso || 1) * 10
@@ -106,7 +109,7 @@ export default function CriarSimulado() {
       if (error) throw error
       // Criar registros de resposta
       const respostas = form.selecionadas.map((qid, i) => ({
-        simulado_id: data.id, questao_id: qid, ordem: i
+        simulado_id: data.id, questao_id: qid, ordem: i, user_id: user.id
       }))
       await supabase.from('respostas_simulado').insert(respostas)
       toast('Simulado criado!', 'success')

@@ -1,6 +1,8 @@
 const GEMINI_API_KEY = 'AIzaSyBfWoxJkgcgfRoYjve2fmFLKjsaSjc2drg'
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
+const OPENROUTER_API_KEY = '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'
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 function extrairJSON(text) {
   // Tenta parse direto
   try { return JSON.parse(text) } catch {}
@@ -71,6 +73,51 @@ async function callIA(messages, jsonMode = false, maxTokens = 32768) {
     return content;
   } catch (err) {
     console.error('Erro ao chamar IA:', err);
+    throw err;
+  }
+}
+
+async function callOpenRouterIA(messages, jsonMode = false, maxTokens = 256000) {
+  try {
+    const body = {
+      // O modelo precisa suportar o limite de tokens que você quer
+      model: "nvidia/nemotron-3-super-120b-a12b-20230311:free", // Modelo da NVIDIA conforme testado anteriormente
+      messages: messages,
+      temperature: 0.3,
+      // Passando o limite solicitado de 256k tokens:
+      // (Nota: em muitas APIs, 'max_tokens' limita a saída. Se houver erro de limite, considere omitir ou diminuir esse valor)
+      max_tokens: maxTokens 
+    };
+
+    if (jsonMode) {
+      body.response_format = { type: "json_object" };
+    }
+
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      console.error('Erro OpenRouter response:', res.status, errBody);
+      throw new Error(`Erro OpenRouter: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    if (!content) {
+      console.error('Resposta OpenRouter vazia:', data);
+      throw new Error('Resposta do OpenRouter vazia');
+    }
+    return content;
+  } catch (err) {
+    console.error('Erro ao chamar OpenRouter:', err);
     throw err;
   }
 }
@@ -230,13 +277,28 @@ REGRAS CRÍTICAS DE FORMATAÇÃO JSON:
 1. NUNCA use aspas duplas (") dentro do texto dos campos. Se precisar destacar algo, use aspas simples (') ou markdown (como **negrito**).
 2. O texto não deve ser interrompido abruptamente. Certifique-se de concluir todo o JSON validamente.`
 
-  const resp = await callIA([
+  const resp = await callOpenRouterIA([
     { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas JSON VÁLIDO e evite aspas duplas nos textos.' },
     { role: 'user', content: prompt }
-  ], true)
+  ], true, 256000)
 
   const parsed = extrairJSON(resp)
-  return parsed || { analise_geral: resp, documento_mais_completo: null, ranking_documentos: [], conteudos_identificados: [], lacunas: [], redundancias: [], conteudo_consolidado: '', conteudo_complementar: '', recomendacoes: [], questoes_consolidadas: [] }
+  if (!parsed || !parsed.analise_geral) {
+    // Fallback if the AI returns a valid JSON but missing the expected schema
+    return { 
+      analise_geral: parsed ? JSON.stringify(parsed) : resp, 
+      documento_mais_completo: null, 
+      ranking_documentos: [], 
+      conteudos_identificados: [], 
+      lacunas: [], 
+      redundancias: [], 
+      conteudo_consolidado: '', 
+      conteudo_complementar: '', 
+      recomendacoes: [], 
+      questoes_consolidadas: [] 
+    }
+  }
+  return parsed
 }
 
 export async function gerarSimuladoAutomatico(errosAnteriores, questoesDisponiveis) {

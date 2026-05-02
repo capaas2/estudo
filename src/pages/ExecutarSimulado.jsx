@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../contexts/AuthContext'
 import { corrigirDiscursiva, analisarDesempenho } from '../services/iaService'
 import { Clock, ChevronLeft, ChevronRight, Send, EyeOff, Eye, AlertTriangle } from 'lucide-react'
 
@@ -9,6 +10,7 @@ export default function ExecutarSimulado() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
+  const { user } = useAuth()
   const [simulado, setSimulado] = useState(null)
   const [questoes, setQuestoes] = useState([])
   const [respostas, setRespostas] = useState([])
@@ -168,6 +170,7 @@ export default function ExecutarSimulado() {
         })
         await supabase.from('analises_simulado').insert({
           simulado_id: id,
+          user_id: user.id,
           pontos_fracos: analise.pontos_fracos || [],
           recomendacoes: analise.recomendacoes || [],
           analise_tempo_desempenho: analise.analise_tempo || '',
