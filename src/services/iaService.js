@@ -17,7 +17,7 @@ function extrairJSON(text) {
   return null
 }
 
-async function callIA(messages, jsonMode = false) {
+async function callIA(messages, jsonMode = false, maxTokens = 32768) {
   try {
     const systemMessage = messages.find(m => m.role === 'system')?.content;
     const userMessages = messages.filter(m => m.role !== 'system').map(m => ({
@@ -29,7 +29,7 @@ async function callIA(messages, jsonMode = false) {
       contents: userMessages,
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 8192,
+        maxOutputTokens: maxTokens,
       }
     };
 
@@ -58,6 +58,10 @@ async function callIA(messages, jsonMode = false) {
     }
 
     const data = await res.json();
+    const finishReason = data.candidates?.[0]?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn('⚠️ Resposta da IA foi TRUNCADA (MAX_TOKENS atingido). Aumente maxTokens.');
+    }
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     if (!content) {
