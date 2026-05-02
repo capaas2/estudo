@@ -76,8 +76,7 @@ ${r.lacunas?.length ? `<div class="lacuna"><h3>⚠️ Lacunas — Conteúdos NÃ
 
 ${r.redundancias?.length ? `<h2>🔁 Redundâncias entre Documentos</h2><ul>${r.redundancias.map(c => `<li>${c}</li>`).join('')}</ul>` : ''}
 
-<h1>📖 Conteúdo Consolidado</h1>
-<div class="section">${(r.conteudo_consolidado || '').replace(/\n/g, '<br>').replace(/## (.*)/g, '<h3>$1</h3>').replace(/# (.*)/g, '<h2>$1</h2>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>
+${r.conteudo_consolidado ? `<h1>📖 Conteúdo Consolidado</h1><div class="section">${r.conteudo_consolidado.replace(/\n/g, '<br>').replace(/## (.*)/g, '<h3>$1</h3>').replace(/# (.*)/g, '<h2>$1</h2>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>` : ''}
 
 ${r.conteudo_complementar ? `<h1>📝 Conteúdo Complementar (o que faltou)</h1><div class="lacuna">${r.conteudo_complementar.replace(/\n/g, '<br>').replace(/## (.*)/g, '<h3>$1</h3>').replace(/# (.*)/g, '<h2>$1</h2>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>` : ''}
 

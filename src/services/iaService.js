@@ -220,10 +220,14 @@ Faça uma análise COMPLETA e responda em JSON:
   ]
 }
 
-Instrução Importante: Extraia as questões encontradas nos PDFs (se houver), unindo-as e removendo duplicatas ou questões repetidas entre os documentos. Caso encontre questões sem resposta, gere um gabarito ou comentário educativo para elas.`
+Instrução Importante: Extraia as questões encontradas nos PDFs (se houver), unindo-as e removendo duplicatas ou questões repetidas entre os documentos. Caso encontre questões sem resposta, gere um gabarito ou comentário educativo para elas.
+
+REGRAS CRÍTICAS DE FORMATAÇÃO JSON:
+1. NUNCA use aspas duplas (") dentro do texto dos campos. Se precisar destacar algo, use aspas simples (') ou markdown (como **negrito**).
+2. O texto não deve ser interrompido abruptamente. Certifique-se de concluir todo o JSON validamente.`
 
   const resp = await callIA([
-    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
+    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas JSON VÁLIDO e evite aspas duplas nos textos.' },
     { role: 'user', content: prompt }
   ], true)
 
