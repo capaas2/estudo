@@ -165,6 +165,12 @@ export default function ResultadoSimulado() {
                   {q.enunciado.length > 200 ? q.enunciado.slice(0, 200) + '...' : q.enunciado}
                 </p>
 
+                {q.imagem_url && (
+                  <div style={{ marginBottom: 16 }}>
+                    <img src={q.imagem_url} alt="Imagem da questão" style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: 8, border: '1px solid var(--border-color)' }} />
+                  </div>
+                )}
+
                 {q.tipo === 'objetiva' ? (
                   <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: '0.85rem' }}>
                     <div className="flex-row gap-8">

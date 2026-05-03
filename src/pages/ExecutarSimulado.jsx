@@ -247,6 +247,12 @@ export default function ExecutarSimulado() {
 
           <div style={{ fontSize: '1.05rem', lineHeight: 1.8, marginBottom: 28, whiteSpace: 'pre-wrap' }}>{q.enunciado}</div>
 
+          {q.imagem_url && (
+            <div style={{ marginBottom: 28, textAlign: 'center' }}>
+              <img src={q.imagem_url} alt="Imagem da questão" style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: 8, border: '1px solid var(--border-color)' }} />
+            </div>
+          )}
+
           {q.tipo === 'objetiva' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {(q.alternativas || []).map(alt => (

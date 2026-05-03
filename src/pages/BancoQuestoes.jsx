@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast'
 import { Plus, Edit3, Trash2, Search, X, ChevronDown, Filter, Lightbulb, Database, Upload, FileText, Sparkles, Brain } from 'lucide-react'
 import { sugerirMelhoriaQuestao, extrairQuestoesDePDF, gerarGabaritoIA } from '../services/iaService'
 import { extrairTextoPDF } from '../services/pdfService'
+import { uploadImagemQuestao } from '../services/storageService'
 
 export default function BancoQuestoes() {
   const toast = useToast()
@@ -25,7 +26,7 @@ export default function BancoQuestoes() {
     tags: [], alternativas: [
       { letra: 'A', texto: '' },{ letra: 'B', texto: '' },{ letra: 'C', texto: '' },{ letra: 'D', texto: '' },{ letra: 'E', texto: '' }
     ],
-    gabarito: '', explicacao: '',
+    gabarito: '', explicacao: '', imagem_url: '', imagemFile: null,
     subitens: [{ letra: 'a', texto: '', gabarito: '', criterios: '' }]
   })
 
@@ -59,7 +60,7 @@ export default function BancoQuestoes() {
       tags: [], alternativas: [
         { letra: 'A', texto: '' },{ letra: 'B', texto: '' },{ letra: 'C', texto: '' },{ letra: 'D', texto: '' },{ letra: 'E', texto: '' }
       ],
-      gabarito: '', explicacao: '',
+      gabarito: '', explicacao: '', imagem_url: '', imagemFile: null,
       subitens: [{ letra: 'a', texto: '', gabarito: '', criterios: '' }]
     })
     setModal('nova')
@@ -71,7 +72,7 @@ export default function BancoQuestoes() {
       enunciado: q.enunciado, dificuldade: q.dificuldade, peso: q.peso || 1,
       tags: q.tags || [],
       alternativas: q.alternativas || [{ letra: 'A', texto: '' },{ letra: 'B', texto: '' },{ letra: 'C', texto: '' },{ letra: 'D', texto: '' },{ letra: 'E', texto: '' }],
-      gabarito: q.gabarito || '', explicacao: q.explicacao || '',
+      gabarito: q.gabarito || '', explicacao: q.explicacao || '', imagem_url: q.imagem_url || '', imagemFile: null,
       subitens: q.subitens || [{ letra: 'a', texto: '', gabarito: '', criterios: '' }]
     })
     setModal('editar')
@@ -81,12 +82,23 @@ export default function BancoQuestoes() {
     e.preventDefault()
     if (!form.enunciado.trim() || !form.materia_id) return toast('Preencha enunciado e matéria', 'error')
 
+    let urlImagem = form.imagem_url;
+    if (form.imagemFile) {
+      try {
+        toast('Fazendo upload da imagem...', 'info')
+        urlImagem = await uploadImagemQuestao(form.imagemFile)
+      } catch (e) {
+        return toast('Erro ao fazer upload da imagem', 'error')
+      }
+    }
+
     const dados = {
       tipo: form.tipo, materia_id: form.materia_id, subtema_id: form.subtema_id || null,
       enunciado: form.enunciado, dificuldade: form.dificuldade, peso: form.peso, tags: form.tags,
       alternativas: form.tipo === 'objetiva' ? form.alternativas : [],
       gabarito: form.tipo === 'objetiva' ? form.gabarito : '',
       explicacao: form.explicacao,
+      imagem_url: urlImagem,
       subitens: form.tipo === 'discursiva' ? form.subitens : []
     }
 
@@ -339,6 +351,24 @@ export default function BancoQuestoes() {
               <div className="form-group">
                 <label className="form-label">Enunciado *</label>
                 <textarea className="form-textarea" value={form.enunciado} onChange={e => setForm({...form, enunciado: e.target.value})} rows={4} placeholder="Digite o enunciado da questão..." />
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Imagem (Opcional)</label>
+                {(form.imagem_url || form.imagemFile) ? (
+                  <div style={{ position: 'relative', display: 'inline-block', marginBottom: 8 }}>
+                    <img 
+                      src={form.imagemFile ? URL.createObjectURL(form.imagemFile) : form.imagem_url} 
+                      alt="Imagem da questão" 
+                      style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid var(--border-color)' }} 
+                    />
+                    <button type="button" className="btn btn-danger btn-icon btn-sm" style={{ position: 'absolute', top: -10, right: -10, borderRadius: '50%' }} onClick={() => setForm({...form, imagem_url: '', imagemFile: null})}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <input type="file" className="form-input" accept="image/*" onChange={e => setForm({...form, imagemFile: e.target.files[0]})} />
+                )}
               </div>
 
               {form.tipo === 'objetiva' ? (
