@@ -363,7 +363,7 @@ export async function extrairQuestoesDePDF(textoPDF) {
 Você é um extrator de dados automatizado. Sua única função é receber o texto de prova abaixo e convertê-lo DIRETAMENTE no formato JSON exigido.
 É ESTRITAMENTE PROIBIDO fazer rascunhos, "pensar em voz alta" ou escrever qualquer texto fora do JSON.
 TODAS as suas respostas devem ser em Português do Brasil.
-EXTRAIA ATÉ 10 QUESTÕES DO TEXTO (MÁXIMO DE 10 QUESTÕES POR VEZ):
+EXTRAIA TODAS AS QUESTÕES ENCONTRADAS NO TEXTO (NÃO HÁ LIMITE DE QUANTIDADE):
 
 TEXTO DA PROVA:
 ${textoPDF}
@@ -391,7 +391,7 @@ O JSON deve seguir este formato exato:
       "tags": ["assunto"]
     }
   ],
-  "total_encontradas": 10,
+  "total_encontradas": "número total de questões extraídas",
   "observacoes": ""
 }`
 
