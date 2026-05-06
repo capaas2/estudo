@@ -187,13 +187,28 @@ Responda APENAS em JSON válido com este formato:
 }
 
 export async function analisarDesempenho(simuladoData) {
+  // Agrupar estatísticas por tema para dar contexto à IA
+  const statsPorTema = {};
+  simuladoData.questoes.forEach(q => {
+    if (!statsPorTema[q.tema]) statsPorTema[q.tema] = { total: 0, acertos: 0 };
+    statsPorTema[q.tema].total++;
+    if (q.correta) statsPorTema[q.tema].acertos++;
+  });
+
+  const statsTexto = Object.entries(statsPorTema)
+    .map(([nome, s]) => `- ${nome}: ${s.acertos}/${s.total} acertos (${Math.round((s.acertos/s.total)*100)}%)`)
+    .join('\n');
+
   const prompt = `Analise o desempenho do aluno neste simulado em português do Brasil.
   
-  REGRAS CRÍTICAS:
-  1. Baseie seus "pontos_fracos" e "recomendacoes" ESTRITAMENTE nos temas e tags informados abaixo.
-  2. JAMAIS sugira conteúdos ou matérias que não aparecem na lista de questões (ex: não sugira matemática se a matéria for biologia).
-  3. Se o aluno acertou tudo de um tema, não o coloque em "pontos_fracos".
-  4. Seja específico e prático nas recomendações.
+  REGRAS CRÍTICAS DE ANÁLISE:
+  1. SEJA CRITERIOSO: Não marque um tema como "ponto_fraco" se o aluno errou apenas uma questão isolada em um tema que possui outros acertos (ex: 2/3 acertos não é necessariamente um ponto fraco).
+  2. PRIORIDADE: Foque em temas onde a taxa de acerto foi inferior a 70% ou onde houve erros em questões fundamentais.
+  3. Baseie-se ESTRITAMENTE nos temas e tags informados abaixo. JAMAIS invente conteúdos externos.
+  4. Se o aluno acertou tudo de um tema, ele deve ser ignorado nos pontos fracos.
+
+  ESTATÍSTICAS POR TEMA:
+  ${statsTexto}
 
   DADOS DO SIMULADO:
   Matéria: ${simuladoData.materia}
@@ -207,8 +222,8 @@ export async function analisarDesempenho(simuladoData) {
 
   Responda APENAS um JSON válido:
   {
-    "pontos_fracos": ["lista de conteúdos onde o aluno errou ou demorou muito"],
-    "recomendacoes": ["dicas práticas de estudo para os pontos fracos identificados"],
+    "pontos_fracos": ["lista de conteúdos onde o aluno teve baixo aproveitamento (<70%)"],
+    "recomendacoes": ["dicas práticas para os pontos fracos reais identificados"],
     "analise_tempo": "análise da relação tempo vs desempenho por tema",
     "tendencia": "análise de evolução",
     "chutes_detectados": ["questões acertadas em tempo muito curto (ex: <15s)"],
