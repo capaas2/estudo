@@ -391,7 +391,10 @@ export async function extrairQuestoesDePDF(textoPDF) {
 Você é um extrator de dados automatizado. Sua única função é receber o texto de prova abaixo e convertê-lo DIRETAMENTE no formato JSON exigido.
 É ESTRITAMENTE PROIBIDO fazer rascunhos, "pensar em voz alta" ou escrever qualquer texto fora do JSON.
 TODAS as suas respostas devem ser em Português do Brasil.
-EXTRAIA TODAS AS QUESTÕES ENCONTRADAS NO TEXTO (NÃO HÁ LIMITE DE QUANTIDADE):
+REGRAS DE EXTRAÇÃO:
+1. DIFICULDADE REAL: Analise a complexidade de cada questão. Não classifique tudo como 'medio'. Use 'facil' para conceitos básicos, 'medio' para aplicação de conhecimento e 'dificil' para questões que exigem análise profunda ou cálculos complexos.
+2. Identifique corretamente o tipo de questão (objetiva ou discursiva).
+3. EXTRAIA TODAS AS QUESTÕES ENCONTRADAS NO TEXTO (NÃO HÁ LIMITE DE QUANTIDADE):
 
 TEXTO DA PROVA:
 ${textoPDF}
@@ -415,7 +418,7 @@ O JSON deve seguir este formato exato:
       ],
       "gabarito": "Sua resposta geral ou alternativa correta...",
       "explicacao": "Explicação detalhada da questão...",
-      "dificuldade": "medio",
+      "dificuldade": "Análise real: 'facil', 'medio' ou 'dificil' (baseado na complexidade do enunciado e exigência cognitiva)",
       "subtema": "Assunto principal específico (ex: Mitose, Equações de 2º grau, Revolução Francesa)",
       "tags": ["assunto", "palavra-chave"]
     }
