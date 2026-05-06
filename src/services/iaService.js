@@ -261,7 +261,7 @@ Sugira melhorias claras e específicas.`
 export async function analisarPDFs(documentos, conteudosEsperados) {
   // documentos = [{nome, texto}]
   const resumos = documentos.map((d, i) => {
-    const preview = d.texto.slice(0, 3000)
+    const preview = d.texto.slice(0, 20000)
     return `--- DOCUMENTO ${i + 1}: "${d.nome}" (${d.texto.length} caracteres) ---\n${preview}\n`
   }).join('\n')
 
@@ -305,7 +305,11 @@ Formato esperado:
   ]
 }
 
-Instrução Importante: Extraia as questões encontradas nos PDFs (se houver), unindo-as e removendo duplicatas ou questões repetidas entre os documentos. Caso encontre questões sem resposta, gere um gabarito ou comentário educativo para elas.
+REGRAS PARA QUESTÕES:
+1. Extraia TODAS as questões encontradas nos PDFs, sem limite de quantidade.
+2. Mantenha o formato original (objetiva ou discursiva).
+3. Se encontrar questões sem resposta, gere um gabarito ou comentário educativo.
+4. Una questões similares e remova duplicatas exatas entre documentos.
 
 REGRAS CRÍTICAS DE FORMATAÇÃO JSON:
 1. NUNCA use aspas duplas (") dentro do texto dos campos. Se precisar destacar algo, use aspas simples (') ou markdown (como **negrito**).
@@ -313,9 +317,9 @@ REGRAS CRÍTICAS DE FORMATAÇÃO JSON:
 3. O texto não deve ser interrompido abruptamente. Certifique-se de concluir todo o JSON validamente.`
 
   const resp = await callOpenRouterIA([
-    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas um OBJETO JSON VÁLIDO começando com { e evite aspas duplas nos textos.' },
+    { role: 'system', content: 'Você é um professor universitário especialista. Analise materiais com profundidade e extraia TODAS as questões encontradas. O campo conteudo_consolidado deve ser EXTENSO e detalhado. Sempre responda em português do Brasil. Responda apenas um OBJETO JSON VÁLIDO começando com { e evite aspas duplas nos textos.' },
     { role: 'user', content: prompt }
-  ], true, 8000)
+  ], true, 16000)
 
   const parsed = extrairJSON(resp)
   if (!parsed || !parsed.analise_geral) {
