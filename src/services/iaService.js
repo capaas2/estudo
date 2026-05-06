@@ -187,27 +187,36 @@ Responda APENAS em JSON válido com este formato:
 }
 
 export async function analisarDesempenho(simuladoData) {
-  const prompt = `Analise o desempenho do aluno neste simulado em português do Brasil:
+  const prompt = `Analise o desempenho do aluno neste simulado em português do Brasil.
+  
+  REGRAS CRÍTICAS:
+  1. Baseie seus "pontos_fracos" e "recomendacoes" ESTRITAMENTE nos temas e tags informados abaixo.
+  2. JAMAIS sugira conteúdos ou matérias que não aparecem na lista de questões (ex: não sugira matemática se a matéria for biologia).
+  3. Se o aluno acertou tudo de um tema, não o coloque em "pontos_fracos".
+  4. Seja específico e prático nas recomendações.
 
-Matéria: ${simuladoData.materia}
-Nota: ${simuladoData.nota}/${simuladoData.notaMaxima}
-Tempo total: ${Math.round(simuladoData.tempoTotal / 60)} minutos
-Questões: ${simuladoData.questoes.map(q => 
-  `- ${q.tipo}: ${q.correta ? 'Acertou' : 'Errou'} | Tempo: ${q.tempo}s | Tema: ${q.tema}`
-).join('\n')}
+  DADOS DO SIMULADO:
+  Matéria: ${simuladoData.materia}
+  Nota: ${simuladoData.nota}/${simuladoData.notaMaxima}
+  Tempo total: ${Math.round(simuladoData.tempoTotal / 60)} minutos
 
-Responda em JSON:
-{
-  "pontos_fracos": ["lista de pontos fracos"],
-  "recomendacoes": ["lista de recomendações"],
-  "analise_tempo": "análise da relação tempo vs desempenho",
-  "tendencia": "análise de tendência",
-  "chutes_detectados": ["questões com possível chute"],
-  "dificuldades_detectadas": ["questões com dificuldade"]
-}`
+  DETALHE DAS QUESTÕES:
+  ${simuladoData.questoes.map(q => 
+    `- [${q.tipo.toUpperCase()}] Tema: ${q.tema} | Status: ${q.correta ? 'ACERTOU' : 'ERROU'} | Tempo: ${q.tempo}s | Tags: ${q.tags?.join(', ') || 'Sem tags'}`
+  ).join('\n')}
+
+  Responda APENAS um JSON válido:
+  {
+    "pontos_fracos": ["lista de conteúdos onde o aluno errou ou demorou muito"],
+    "recomendacoes": ["dicas práticas de estudo para os pontos fracos identificados"],
+    "analise_tempo": "análise da relação tempo vs desempenho por tema",
+    "tendencia": "análise de evolução",
+    "chutes_detectados": ["questões acertadas em tempo muito curto (ex: <15s)"],
+    "dificuldades_detectadas": ["questões com tempo excessivo (ex: >180s) mesmo se acertou"]
+  }`
 
   const resp = await callOpenRouterIA([
-    { role: 'system', content: 'Você é um analista educacional. Sempre responda em português do Brasil. Responda apenas JSON válido.' },
+    { role: 'system', content: 'Você é um analista educacional rigoroso e preciso. Sua análise deve ser baseada exclusivamente nos dados fornecidos, sem inventar conteúdos externos. Responda apenas JSON.' },
     { role: 'user', content: prompt }
   ], true)
 
