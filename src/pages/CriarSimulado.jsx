@@ -19,7 +19,7 @@ export default function CriarSimulado() {
   const [criando, setCriando] = useState(false)
 
   const [form, setForm] = useState({
-    titulo: '', materia_id: materiaId || '', subtema_id: '', dificuldade: '',
+    titulo: '', materia_id: materiaId || '', subtema_id: '', dificuldade: '', tipo_questao: '',
     tipo: 'manual', cronometro_visivel: true, excluir_feitas: false, selecionadas: []
   })
 
@@ -45,6 +45,7 @@ export default function CriarSimulado() {
     if (q.materia_id !== form.materia_id) return false
     if (form.subtema_id && q.subtema_id !== form.subtema_id) return false
     if (form.dificuldade && q.dificuldade !== form.dificuldade) return false
+    if (form.tipo_questao && q.tipo !== form.tipo_questao) return false
     if (form.excluir_feitas && respondidasIds.has(q.id)) return false
     return true
   })
@@ -155,14 +156,24 @@ export default function CriarSimulado() {
                 {subtemas.filter(s => s.materia_id === form.materia_id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Dificuldade (filtro)</label>
-              <select className="form-select" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value})}>
-                <option value="">Todas</option>
-                <option value="facil">Fácil</option>
-                <option value="medio">Médio</option>
-                <option value="dificil">Difícil</option>
-              </select>
+            <div className="grid-2 gap-16">
+              <div className="form-group">
+                <label className="form-label">Dificuldade (filtro)</label>
+                <select className="form-select" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value})}>
+                  <option value="">Todas</option>
+                  <option value="facil">Fácil</option>
+                  <option value="medio">Médio</option>
+                  <option value="dificil">Difícil</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Tipo de Questão (filtro)</label>
+                <select className="form-select" value={form.tipo_questao} onChange={e => setForm({...form, tipo_questao: e.target.value})}>
+                  <option value="">Ambas</option>
+                  <option value="objetiva">Objetiva</option>
+                  <option value="discursiva">Discursiva</option>
+                </select>
+              </div>
             </div>
             <div className="form-group flex-row gap-16">
               <label className="flex-row gap-8" style={{ cursor: 'pointer' }}>
