@@ -484,11 +484,16 @@ export default function BancoQuestoes() {
               <div className="form-group">
                 <label className="form-label">Suporte Visual (Opcional)</label>
                 <div style={{ 
+                  position: 'relative',
                   border: '2px dashed var(--border-color)', 
                   borderRadius: 'var(--radius-md)', 
                   padding: 20, 
                   textAlign: 'center',
-                  background: 'rgba(255,255,255,0.02)'
+                  background: 'rgba(255,255,255,0.02)',
+                  minHeight: 100,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
                   {(form.imagem_url || form.imagemFile) ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -497,15 +502,28 @@ export default function BancoQuestoes() {
                         alt="Preview" 
                         style={{ maxWidth: '100%', maxHeight: 250, borderRadius: 8, boxShadow: 'var(--shadow-md)' }} 
                       />
-                      <button type="button" className="btn btn-danger btn-icon" style={{ position: 'absolute', top: -12, right: -12, borderRadius: '50%', padding: 0 }} onClick={() => setForm({...form, imagem_url: '', imagemFile: null})}>
+                      <button type="button" className="btn btn-danger btn-icon" style={{ position: 'absolute', top: -12, right: -12, borderRadius: '50%', padding: 0, zIndex: 10 }} onClick={() => setForm({...form, imagem_url: '', imagemFile: null})}>
                         <X size={16} />
                       </button>
                     </div>
                   ) : (
-                    <div className="flex-row" style={{ justifyContent: 'center' }}>
-                      <Upload size={20} className="text-muted" />
+                    <div className="flex-column gap-12" style={{ cursor: 'pointer' }}>
+                      <Upload size={24} className="text-muted" />
                       <span className="text-muted" style={{ fontSize: '0.9rem' }}>Arraste uma imagem ou clique para selecionar</span>
-                      <input type="file" style={{ position: 'absolute', opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} accept="image/*" onChange={e => setForm({...form, imagemFile: e.target.files[0]})} />
+                      <input 
+                        type="file" 
+                        style={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          left: 0, 
+                          width: '100%', 
+                          height: '100%', 
+                          opacity: 0, 
+                          cursor: 'pointer' 
+                        }} 
+                        accept="image/*" 
+                        onChange={e => setForm({...form, imagemFile: e.target.files[0]})} 
+                      />
                     </div>
                   )}
                 </div>
