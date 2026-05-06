@@ -88,10 +88,10 @@ async function callIA(messages, jsonMode = false, maxTokens = 32768) {
 async function callOpenRouterIA(messages, jsonMode = false, maxTokens = 8000) {
   // Lista de modelos com grande janela de contexto e alta capacidade para uso gratuito (fallback em caso de 429/rate-limit)
   const fallbackModels = [
-    "google/gemma-4-31b-it:free",
-    "qwen/qwen3-next-80b-a3b-instruct:free",
-    "inclusionai/ling-2.6-1t:free",
-    "tencent/hy3-preview:free",
+    "google/gemma-2-9b-it:free",
+    "mistralai/mistral-7b-instruct:free",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "microsoft/phi-3-medium-128k-instruct:free",
     "openrouter/free"
   ];
 
