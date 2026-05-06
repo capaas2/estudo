@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/Toast'
-import { Plus, Edit3, Trash2, Search, X, ChevronDown, Filter, Lightbulb, Database, Upload, FileText, Sparkles, Brain } from 'lucide-react'
+import { Plus, Edit3, Trash2, Search, X, ChevronDown, Filter, Lightbulb, Database, Upload, FileText, Sparkles, Brain, BookOpen, Layers } from 'lucide-react'
 import { sugerirMelhoriaQuestao, extrairQuestoesDePDF, gerarGabaritoIA } from '../services/iaService'
 import { extrairTextoPDF } from '../services/pdfService'
 import { uploadImagemQuestao } from '../services/storageService'
@@ -168,7 +168,6 @@ export default function BancoQuestoes() {
     let count = 0
     let duplicados = 0
     
-    // Cache de subtemas existentes para evitar consultas repetidas
     const { data: subsExistentes } = await supabase.from('subtemas').select('id, nome').eq('materia_id', materiaId)
     const mapaSubtemas = new Map((subsExistentes || []).map(s => [s.nome.toLowerCase(), s.id]))
 
@@ -180,7 +179,6 @@ export default function BancoQuestoes() {
       if (mapaSubtemas.has(nomeNormalizado)) {
         subtemaId = mapaSubtemas.get(nomeNormalizado)
       } else {
-        // Criar novo subtema
         const { data: novoSub, error: errSub } = await supabase
           .from('subtemas')
           .insert({ materia_id: materiaId, nome: nomeSub.trim() })
@@ -247,223 +245,376 @@ export default function BancoQuestoes() {
 
   const nomeMateria = (id) => materias.find(m => m.id === id)?.nome || '—'
   const nomeSubtema = (id) => subtemas.find(s => s.id === id)?.nome || ''
-  const subtemasMateria = subtemas.filter(s => s.materia_id === (form.materia_id || filtros.materia))
 
-  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Carregando...</p></div>
+  if (loading) return <div className="loading-container"><div className="loading-spinner" /><p>Carregando banco de dados...</p></div>
 
   return (
     <div className="fade-in">
-      <div className="page-header">
-        <div>
-          <h2>Banco de Questões</h2>
-          <p className="subtitle">{questoes.length} questões cadastradas</p>
-        </div>
-        <div className="flex-row gap-8">
-          <label className="btn btn-secondary" style={{ cursor: importando ? 'wait' : 'pointer' }}>
-            <Upload size={16} /> {importando ? 'Processando...' : 'Importar PDF'}
-            <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={importarPDF} disabled={importando} />
-          </label>
-          <button className="btn btn-primary" onClick={abrirNova}><Plus size={18} /> Nova Questão</button>
+      <div className="page-header" style={{ background: 'linear-gradient(to bottom, rgba(17, 24, 39, 0.8), rgba(17, 24, 39, 0.4))' }}>
+        <div className="container-center flex-between" style={{ width: '100%' }}>
+          <div>
+            <div className="flex-row gap-8">
+              <Database className="text-cyan" size={24} />
+              <h2 style={{ margin: 0 }}>Banco de Questões</h2>
+            </div>
+            <p className="subtitle">{questoes.length} questões disponíveis para estudo</p>
+          </div>
+          <div className="flex-row gap-12">
+            <label className="btn btn-secondary" style={{ cursor: importando ? 'wait' : 'pointer', borderStyle: 'dashed' }}>
+              <Upload size={16} /> {importando ? 'Processando...' : 'Importar PDF'}
+              <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={importarPDF} disabled={importando} />
+            </label>
+            <button className="btn btn-primary" onClick={abrirNova} style={{ boxShadow: '0 0 15px rgba(6, 182, 212, 0.3)' }}>
+              <Plus size={18} /> Nova Questão
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="page-body">
-        {/* Filtros */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="flex-row flex-wrap gap-16">
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div className="flex-row" style={{ position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)' }} />
-                <input className="form-input" placeholder="Buscar no enunciado..." value={filtros.busca} onChange={e => setFiltros({...filtros, busca: e.target.value})} style={{ paddingLeft: 36 }} />
+        <div className="container-center">
+          {/* Toolbar de Filtros */}
+          <div className="glass-toolbar">
+            <div className="flex-row flex-wrap gap-16">
+              <div style={{ flex: 1, minWidth: 280 }}>
+                <div className="flex-row" style={{ position: 'relative' }}>
+                  <Search size={18} style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }} />
+                  <input 
+                    className="form-input" 
+                    placeholder="Pesquisar termos no enunciado..." 
+                    value={filtros.busca} 
+                    onChange={e => setFiltros({...filtros, busca: e.target.value})} 
+                    style={{ paddingLeft: 42, background: 'var(--bg-primary)', height: 46 }} 
+                  />
+                </div>
+              </div>
+              
+              <div className="flex-row gap-8">
+                <Filter size={16} className="text-muted" />
+                <select className="form-select" value={filtros.materia} onChange={e => setFiltros({...filtros, materia: e.target.value, subtema: ''})} style={{ width: 180, height: 46 }}>
+                  <option value="">Todas Matérias</option>
+                  {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+                
+                <select className="form-select" value={filtros.tipo} onChange={e => setFiltros({...filtros, tipo: e.target.value})} style={{ width: 150, height: 46 }}>
+                  <option value="">Tipo: Todos</option>
+                  <option value="objetiva">Objetiva</option>
+                  <option value="discursiva">Discursiva</option>
+                </select>
+
+                <select className="form-select" value={filtros.dificuldade} onChange={e => setFiltros({...filtros, dificuldade: e.target.value})} style={{ width: 140, height: 46 }}>
+                  <option value="">Dificuldade</option>
+                  <option value="facil">Fácil</option>
+                  <option value="medio">Médio</option>
+                  <option value="dificil">Difícil</option>
+                </select>
               </div>
             </div>
-            <select className="form-select" value={filtros.materia} onChange={e => setFiltros({...filtros, materia: e.target.value, subtema: ''})} style={{ width: 180 }}>
-              <option value="">Todas matérias</option>
-              {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-            </select>
-            <select className="form-select" value={filtros.tipo} onChange={e => setFiltros({...filtros, tipo: e.target.value})} style={{ width: 140 }}>
-              <option value="">Todos tipos</option>
-              <option value="objetiva">Objetiva</option>
-              <option value="discursiva">Discursiva</option>
-            </select>
-            <select className="form-select" value={filtros.dificuldade} onChange={e => setFiltros({...filtros, dificuldade: e.target.value})} style={{ width: 140 }}>
-              <option value="">Dificuldade</option>
-              <option value="facil">Fácil</option>
-              <option value="medio">Médio</option>
-              <option value="dificil">Difícil</option>
-            </select>
           </div>
-        </div>
 
-        {questoesFiltradas.length === 0 ? (
-          <div className="empty-state">
-            <Database size={48} />
-            <h3>Nenhuma questão encontrada</h3>
-            <p>Crie questões para montar seus simulados.</p>
-            <button className="btn btn-primary" onClick={abrirNova}><Plus size={18} /> Criar Questão</button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {questoesFiltradas.map(q => (
-              <div key={q.id} className="card">
-                <div className="flex-between">
-                  <div style={{ flex: 1 }}>
-                    <div className="flex-row gap-8" style={{ marginBottom: 8 }}>
-                      <span className={`badge ${q.tipo === 'objetiva' ? 'badge-cyan' : 'badge-violet'}`}>{q.tipo}</span>
-                      <span className={`badge ${q.dificuldade === 'facil' ? 'badge-success' : q.dificuldade === 'dificil' ? 'badge-error' : 'badge-warning'}`}>{q.dificuldade}</span>
-                      <span className="badge badge-cyan">{nomeMateria(q.materia_id)}</span>
-                      {nomeSubtema(q.subtema_id) && <span className="badge badge-violet">{nomeSubtema(q.subtema_id)}</span>}
-                      {(q.tags || []).map(t => <span key={t} className="badge badge-warning">{t}</span>)}
-                    </div>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                      {q.enunciado.length > 200 ? q.enunciado.slice(0, 200) + '...' : q.enunciado}
-                    </p>
-                  </div>
-                  <div className="flex-row gap-8" style={{ marginLeft: 16 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => pedirSugestaoIA(q)} title="Sugestão IA"><Lightbulb size={14} /></button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => abrirEditar(q)}><Edit3 size={14} /></button>
-                    <button className="btn btn-danger btn-sm" onClick={() => excluir(q.id)}><Trash2 size={14} /></button>
-                  </div>
-                </div>
-                {sugestaoIA.questaoId === q.id && (
-                  <div style={{ marginTop: 12, padding: 16, background: 'var(--accent-violet-dim)', borderRadius: 8, fontSize: '0.85rem' }} className="slide-up">
-                    <div className="flex-between" style={{ marginBottom: 8 }}>
-                      <strong style={{ color: 'var(--accent-violet)' }}>💡 Sugestão da IA</strong>
-                      <button className="btn btn-icon btn-sm btn-secondary" onClick={() => setSugestaoIA({ loading: false, texto: '', questaoId: null })}><X size={12} /></button>
-                    </div>
-                    {sugestaoIA.loading ? <div className="loading-spinner" /> : <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{sugestaoIA.texto}</p>}
-                  </div>
-                )}
+          {questoesFiltradas.length === 0 ? (
+            <div className="empty-state card slide-up" style={{ padding: 80 }}>
+              <div style={{ background: 'var(--bg-tertiary)', width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
+                <Search size={40} className="text-muted" />
               </div>
-            ))}
-          </div>
-        )}
+              <h3>Nenhuma questão encontrada</h3>
+              <p>Tente ajustar seus filtros ou crie uma nova questão para começar.</p>
+              <button className="btn btn-primary btn-lg mt-24" onClick={abrirNova}>
+                <Plus size={20} /> Criar Minha Primeira Questão
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="fade-in">
+              {questoesFiltradas.map((q, idx) => (
+                <div key={q.id} className="question-card slide-up" style={{ animationDelay: `${idx * 0.05}s` }}>
+                  <div style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="flex-row flex-wrap gap-8" style={{ marginBottom: 12 }}>
+                        <span className={`badge ${q.tipo === 'objetiva' ? 'badge-cyan' : 'badge-violet'}`}>
+                          {q.tipo === 'objetiva' ? <Layers size={10} style={{marginRight:4}} /> : <Edit3 size={10} style={{marginRight:4}} />}
+                          {q.tipo}
+                        </span>
+                        <span className={`badge ${q.dificuldade === 'facil' ? 'badge-success' : q.dificuldade === 'dificil' ? 'badge-error' : 'badge-warning'}`}>
+                          {q.dificuldade}
+                        </span>
+                        <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                          <BookOpen size={10} style={{marginRight:4}} />
+                          {nomeMateria(q.materia_id)}
+                        </span>
+                        {nomeSubtema(q.subtema_id) && (
+                          <span className="badge badge-violet" style={{ opacity: 0.8 }}>
+                            {nomeSubtema(q.subtema_id)}
+                          </span>
+                        )}
+                        {(q.tags || []).map(t => <span key={t} className="badge badge-warning" style={{ opacity: 0.7 }}>#{t}</span>)}
+                      </div>
+                      
+                      <p style={{ fontSize: '1rem', color: 'var(--text-primary)', lineHeight: 1.6, fontWeight: 400 }}>
+                        {q.enunciado.length > 300 ? q.enunciado.slice(0, 300) + '...' : q.enunciado}
+                      </p>
+                    </div>
+
+                    <div className="flex-row gap-8" style={{ alignSelf: 'flex-start', flexShrink: 0 }}>
+                      <button className="btn btn-secondary btn-icon" onClick={() => pedirSugestaoIA(q)} title="Pedir Insight da IA" style={{ borderRadius: '50%' }}>
+                        <Sparkles size={16} className="text-violet" />
+                      </button>
+                      <button className="btn btn-secondary btn-icon" onClick={() => abrirEditar(q)} style={{ borderRadius: '50%' }}>
+                        <Edit3 size={16} />
+                      </button>
+                      <button className="btn btn-danger btn-icon" onClick={() => excluir(q.id)} style={{ borderRadius: '50%', background: 'transparent' }}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {sugestaoIA.questaoId === q.id && (
+                    <div style={{ 
+                      marginTop: 20, 
+                      padding: 20, 
+                      background: 'rgba(139, 92, 246, 0.08)', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid rgba(139, 92, 246, 0.2)',
+                      fontSize: '0.95rem' 
+                    }} className="slide-up">
+                      <div className="flex-between" style={{ marginBottom: 12 }}>
+                        <div className="flex-row gap-8">
+                          <Brain size={18} className="text-violet" />
+                          <strong style={{ color: 'var(--accent-violet)' }}>Insight da Inteligência Artificial</strong>
+                        </div>
+                        <button className="btn btn-icon btn-sm btn-secondary" onClick={() => setSugestaoIA({ loading: false, texto: '', questaoId: null })} style={{ background: 'transparent', border: 'none' }}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                      {sugestaoIA.loading ? (
+                        <div className="flex-row gap-12" style={{ padding: '10px 0' }}>
+                          <div className="loading-spinner" style={{ margin: 0, width: 20, height: 20 }} />
+                          <span className="text-muted">Analisando pedagogicamente a questão...</span>
+                        </div>
+                      ) : (
+                        <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                          {sugestaoIA.texto}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal Criar/Editar */}
       {modal && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
-          <div className="modal modal-xl" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
+          <div className="modal modal-xl" onClick={e => e.stopPropagation()} style={{ maxHeight: '92vh', border: '1px solid var(--accent-cyan)' }}>
             <div className="modal-header">
-              <h3>{modal === 'editar' ? 'Editar Questão' : 'Nova Questão'}</h3>
-              <button className="btn btn-icon btn-secondary" onClick={() => setModal(null)}><X size={18} /></button>
+              <div className="flex-row gap-12">
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--accent-cyan-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {modal === 'editar' ? <Edit3 size={20} className="text-cyan" /> : <Plus size={20} className="text-cyan" />}
+                </div>
+                <h3>{modal === 'editar' ? 'Editar Questão' : 'Criar Nova Questão'}</h3>
+              </div>
+              <button className="btn btn-icon btn-secondary" onClick={() => setModal(null)} style={{ borderRadius: '50%' }}><X size={18} /></button>
             </div>
+            
             <form onSubmit={salvar}>
               <div className="grid-2">
                 <div className="form-group">
-                  <label className="form-label">Tipo</label>
+                  <label className="form-label">Tipo de Questão</label>
                   <select className="form-select" value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value})}>
-                    <option value="objetiva">Objetiva</option>
-                    <option value="discursiva">Discursiva</option>
+                    <option value="objetiva">Objetiva (Múltipla Escolha)</option>
+                    <option value="discursiva">Discursiva (Resposta Aberta)</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Dificuldade</label>
+                  <label className="form-label">Nível de Dificuldade</label>
                   <select className="form-select" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value})}>
-                    <option value="facil">Fácil</option>
-                    <option value="medio">Médio</option>
-                    <option value="dificil">Difícil</option>
+                    <option value="facil">🟢 Fácil</option>
+                    <option value="medio">🟡 Médio</option>
+                    <option value="dificil">🔴 Difícil</option>
                   </select>
                 </div>
               </div>
+
               <div className="grid-2">
                 <div className="form-group">
-                  <label className="form-label">Matéria *</label>
+                  <label className="form-label">Matéria Base *</label>
                   <select className="form-select" value={form.materia_id} onChange={e => setForm({...form, materia_id: e.target.value, subtema_id: ''})}>
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione a disciplina...</option>
                     {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Subtema</label>
+                  <label className="form-label">Subtema Específico</label>
                   <select className="form-select" value={form.subtema_id} onChange={e => setForm({...form, subtema_id: e.target.value})}>
-                    <option value="">Nenhum</option>
+                    <option value="">Nenhum (Geral)</option>
                     {subtemas.filter(s => s.materia_id === form.materia_id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                   </select>
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Peso</label>
-                <input type="number" className="form-input" value={form.peso} onChange={e => setForm({...form, peso: Number(e.target.value)})} min={0.5} max={10} step={0.5} style={{ width: 100 }} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Tags</label>
-                <div className="flex-row gap-8">
-                  {['conceitual','interpretação','memorização'].map(tag => (
-                    <div key={tag} className={`chip ${form.tags.includes(tag) ? 'selected' : ''}`} onClick={() => toggleTag(tag)}>{tag}</div>
-                  ))}
+
+              <div className="grid-2">
+                <div className="form-group">
+                  <label className="form-label">Peso Pedagógico</label>
+                  <input type="number" className="form-input" value={form.peso} onChange={e => setForm({...form, peso: Number(e.target.value)})} min={0.5} max={10} step={0.5} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tags Rápidas</label>
+                  <div className="flex-row gap-8" style={{ marginTop: 4 }}>
+                    {['conceitual','interpretação','memorização'].map(tag => (
+                      <div key={tag} className={`chip ${form.tags.includes(tag) ? 'selected' : ''}`} onClick={() => toggleTag(tag)}>{tag}</div>
+                    ))}
+                  </div>
                 </div>
               </div>
+
               <div className="form-group">
-                <label className="form-label">Enunciado *</label>
-                <textarea className="form-textarea" value={form.enunciado} onChange={e => setForm({...form, enunciado: e.target.value})} rows={4} placeholder="Digite o enunciado da questão..." />
+                <label className="form-label">Enunciado Completo *</label>
+                <textarea 
+                  className="form-textarea" 
+                  value={form.enunciado} 
+                  onChange={e => setForm({...form, enunciado: e.target.value})} 
+                  rows={6} 
+                  placeholder="Descreva a pergunta de forma clara e objetiva..." 
+                  style={{ fontSize: '1rem' }}
+                />
               </div>
               
               <div className="form-group">
-                <label className="form-label">Imagem (Opcional)</label>
-                {(form.imagem_url || form.imagemFile) ? (
-                  <div style={{ position: 'relative', display: 'inline-block', marginBottom: 8 }}>
-                    <img 
-                      src={form.imagemFile ? URL.createObjectURL(form.imagemFile) : form.imagem_url} 
-                      alt="Imagem da questão" 
-                      style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, border: '1px solid var(--border-color)' }} 
-                    />
-                    <button type="button" className="btn btn-danger btn-icon btn-sm" style={{ position: 'absolute', top: -10, right: -10, borderRadius: '50%' }} onClick={() => setForm({...form, imagem_url: '', imagemFile: null})}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <input type="file" className="form-input" accept="image/*" onChange={e => setForm({...form, imagemFile: e.target.files[0]})} />
-                )}
+                <label className="form-label">Suporte Visual (Opcional)</label>
+                <div style={{ 
+                  border: '2px dashed var(--border-color)', 
+                  borderRadius: 'var(--radius-md)', 
+                  padding: 20, 
+                  textAlign: 'center',
+                  background: 'rgba(255,255,255,0.02)'
+                }}>
+                  {(form.imagem_url || form.imagemFile) ? (
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <img 
+                        src={form.imagemFile ? URL.createObjectURL(form.imagemFile) : form.imagem_url} 
+                        alt="Preview" 
+                        style={{ maxWidth: '100%', maxHeight: 250, borderRadius: 8, boxShadow: 'var(--shadow-md)' }} 
+                      />
+                      <button type="button" className="btn btn-danger btn-icon" style={{ position: 'absolute', top: -12, right: -12, borderRadius: '50%', padding: 0 }} onClick={() => setForm({...form, imagem_url: '', imagemFile: null})}>
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex-row" style={{ justifyContent: 'center' }}>
+                      <Upload size={20} className="text-muted" />
+                      <span className="text-muted" style={{ fontSize: '0.9rem' }}>Arraste uma imagem ou clique para selecionar</span>
+                      <input type="file" style={{ position: 'absolute', opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} accept="image/*" onChange={e => setForm({...form, imagemFile: e.target.files[0]})} />
+                    </div>
+                  )}
+                </div>
               </div>
 
+              <div style={{ height: 1, background: 'var(--border-color)', margin: '32px 0' }} />
+
               {form.tipo === 'objetiva' ? (
-                <>
-                  <div className="form-group">
-                    <label className="form-label">Alternativas</label>
+                <div className="slide-up">
+                  <h4 style={{ marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Layers size={18} className="text-cyan" /> Alternativas e Gabarito
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {form.alternativas.map((alt, i) => (
-                      <div key={i} className="flex-row" style={{ marginBottom: 8 }}>
-                        <div onClick={() => setForm({...form, gabarito: alt.letra})} style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: form.gabarito === alt.letra ? 'var(--success)' : 'var(--bg-tertiary)', color: form.gabarito === alt.letra ? 'white' : 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer', flexShrink: 0, fontSize: '0.85rem', border: '1px solid var(--border-color)' }}>
+                      <div key={i} className="flex-row" style={{ 
+                        background: form.gabarito === alt.letra ? 'rgba(16, 185, 129, 0.05)' : 'transparent',
+                        padding: 8,
+                        borderRadius: 12,
+                        border: '1px solid',
+                        borderColor: form.gabarito === alt.letra ? 'var(--success)' : 'transparent',
+                        transition: 'all 0.2s ease'
+                      }}>
+                        <div 
+                          onClick={() => setForm({...form, gabarito: alt.letra})} 
+                          style={{ 
+                            width: 42, height: 42, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            background: form.gabarito === alt.letra ? 'var(--success)' : 'var(--bg-tertiary)', 
+                            color: form.gabarito === alt.letra ? 'white' : 'var(--text-secondary)', 
+                            fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                            boxShadow: form.gabarito === alt.letra ? '0 0 10px rgba(16, 185, 129, 0.4)' : 'none',
+                            border: '1px solid var(--border-color)'
+                          }}
+                        >
                           {alt.letra}
                         </div>
-                        <input className="form-input" value={alt.texto} onChange={e => { const a = [...form.alternativas]; a[i] = {...a[i], texto: e.target.value}; setForm({...form, alternativas: a}) }} placeholder={`Alternativa ${alt.letra}`} style={{ flex: 1 }} />
+                        <input 
+                          className="form-input" 
+                          value={alt.texto} 
+                          onChange={e => { const a = [...form.alternativas]; a[i] = {...a[i], texto: e.target.value}; setForm({...form, alternativas: a}) }} 
+                          placeholder={`Descreva a alternativa ${alt.letra}...`} 
+                          style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-color)', borderRadius: 0 }} 
+                        />
                       </div>
                     ))}
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Clique na letra para marcar o gabarito (verde = correto)</p>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Explicação</label>
-                    <textarea className="form-textarea" value={form.explicacao} onChange={e => setForm({...form, explicacao: e.target.value})} rows={3} placeholder="Opcional — pode ser gerada pela IA" />
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+                    Clique na letra para definir qual é a alternativa correta.
+                  </p>
+                  
+                  <div className="form-group" style={{ marginTop: 24 }}>
+                    <label className="form-label">Resolução Comentada</label>
+                    <textarea className="form-textarea" value={form.explicacao} onChange={e => setForm({...form, explicacao: e.target.value})} rows={4} placeholder="Explique o porquê desta ser a alternativa correta..." />
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="form-group">
-                  <label className="form-label">Subitens</label>
-                  {form.subitens.map((sub, i) => (
-                    <div key={i} style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 10, marginBottom: 12, border: '1px solid var(--border-color)' }}>
-                      <div className="flex-between" style={{ marginBottom: 10 }}>
-                        <strong style={{ color: 'var(--accent-cyan)' }}>{sub.letra})</strong>
-                        {form.subitens.length > 1 && <button type="button" className="btn btn-danger btn-sm" onClick={() => removerSubitem(i)}><Trash2 size={12} /></button>}
+                <div className="slide-up">
+                  <h4 style={{ marginBottom: 20, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Edit3 size={18} className="text-violet" /> Configuração de Subitens
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {form.subitens.map((sub, i) => (
+                      <div key={i} className="card" style={{ background: 'rgba(255,255,255,0.02)', borderStyle: 'dashed' }}>
+                        <div className="flex-between" style={{ marginBottom: 16 }}>
+                          <div className="flex-row gap-8">
+                            <span style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-violet)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                              {sub.letra}
+                            </span>
+                            <span style={{ fontWeight: 600 }}>Item {sub.letra.toUpperCase()}</span>
+                          </div>
+                          {form.subitens.length > 1 && (
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => removerSubitem(i)}>
+                              <Trash2 size={14} /> Excluir Item
+                            </button>
+                          )}
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">Pergunta do Item</label>
+                          <input className="form-input" value={sub.texto} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], texto: e.target.value}; setForm({...form, subitens: s}) }} placeholder="O que está sendo perguntado neste item?" />
+                        </div>
+                        <div className="grid-2">
+                          <div className="form-group">
+                            <label className="form-label">Resposta Padrão</label>
+                            <textarea className="form-textarea" value={sub.gabarito} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], gabarito: e.target.value}; setForm({...form, subitens: s}) }} placeholder="Qual a resposta correta?" rows={3} />
+                          </div>
+                          <div className="form-group">
+                            <label className="form-label">Critérios de Avaliação</label>
+                            <textarea className="form-textarea" value={sub.criterios} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], criterios: e.target.value}; setForm({...form, subitens: s}) }} placeholder="O que o aluno deve citar para ganhar a pontuação?" rows={3} />
+                          </div>
+                        </div>
                       </div>
-                      <div className="form-group" style={{ marginBottom: 10 }}>
-                        <input className="form-input" value={sub.texto} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], texto: e.target.value}; setForm({...form, subitens: s}) }} placeholder="Texto do subitem..." />
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 10 }}>
-                        <textarea className="form-textarea" value={sub.gabarito} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], gabarito: e.target.value}; setForm({...form, subitens: s}) }} placeholder="Gabarito esperado..." rows={2} />
-                      </div>
-                      <input className="form-input" value={sub.criterios} onChange={e => { const s = [...form.subitens]; s[i] = {...s[i], criterios: e.target.value}; setForm({...form, subitens: s}) }} placeholder="Critérios de correção..." />
-                    </div>
-                  ))}
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={adicionarSubitem}><Plus size={14} /> Adicionar Subitem</button>
+                    ))}
+                  </div>
+                  <button type="button" className="btn btn-secondary mt-16" onClick={adicionarSubitem}>
+                    <Plus size={16} /> Adicionar Novo Item (b, c, d...)
+                  </button>
                 </div>
               )}
 
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button>
-                <button type="button" className="btn btn-secondary" onClick={gerarGabarito} disabled={gerandoGab} style={{ borderColor: 'var(--accent-violet)' }}>
-                  <Brain size={16} /> {gerandoGab ? 'Gerando...' : 'Gerar Gabarito com IA'}
+              <div className="modal-footer" style={{ background: 'rgba(17, 24, 39, 0.9)', margin: '24px -32px -32px', padding: '20px 32px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setModal(null)}>Descartar</button>
+                <div style={{ flex: 1 }} />
+                <button type="button" className="btn btn-secondary" onClick={gerarGabarito} disabled={gerandoGab} style={{ border: '1px solid var(--accent-violet)', color: 'var(--accent-violet)' }}>
+                  {gerandoGab ? <div className="loading-spinner" style={{width:16, height:16, margin:0}} /> : <Brain size={18} />}
+                  {gerandoGab ? 'Consultando IA...' : 'Gerar com IA'}
                 </button>
-                <button type="submit" className="btn btn-primary">{modal === 'editar' ? 'Salvar' : 'Criar Questão'}</button>
+                <button type="submit" className="btn btn-primary btn-lg">
+                  {modal === 'editar' ? 'Salvar Alterações' : 'Finalizar e Salvar'}
+                </button>
               </div>
             </form>
           </div>
@@ -475,43 +626,57 @@ export default function BancoQuestoes() {
         <div className="modal-overlay" onClick={() => setModalImport(false)}>
           <div className="modal modal-xl" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
             <div className="modal-header">
-              <h3>📄 Questões Encontradas no PDF</h3>
+              <div className="flex-row gap-12">
+                <FileText className="text-cyan" size={24} />
+                <h3>Questões Detectadas pelo Analisador</h3>
+              </div>
               <button className="btn btn-icon btn-secondary" onClick={() => setModalImport(false)}><X size={18} /></button>
             </div>
-            <div style={{ padding: 20 }}>
-              <div className="flex-row gap-8" style={{ marginBottom: 16 }}>
-                <span className="badge badge-cyan">{importResult.total_encontradas} questões</span>
-                {importResult.observacoes && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{importResult.observacoes}</span>}
+            <div style={{ padding: '0 8px 24px' }}>
+              <div className="glass-toolbar" style={{ marginBottom: 20, padding: 16 }}>
+                <div className="flex-row flex-wrap gap-16">
+                  <div className="badge badge-cyan" style={{ fontSize: '0.9rem', padding: '8px 16px' }}>
+                    {importResult.total_encontradas} questões identificadas
+                  </div>
+                  {importResult.observacoes && (
+                    <div className="flex-row gap-8 text-muted" style={{ fontSize: '0.85rem' }}>
+                      <Sparkles size={14} className="text-warning" />
+                      {importResult.observacoes}
+                    </div>
+                  )}
+                </div>
               </div>
-              {importResult.questoes?.length > 0 ? (
-                <>
-                  <div style={{ maxHeight: 400, overflow: 'auto', marginBottom: 16 }}>
-                    {importResult.questoes.map((q, i) => (
-                      <div key={i} className="card" style={{ marginBottom: 8 }}>
-                        <div className="flex-row gap-8" style={{ marginBottom: 6 }}>
-                          <span className={`badge ${q.tipo === 'objetiva' ? 'badge-cyan' : 'badge-violet'}`}>{q.tipo}</span>
-                          <span className="badge badge-warning">{q.dificuldade}</span>
-                          {q.gabarito && <span className="badge badge-success">Gabarito: {q.gabarito}</span>}
-                        </div>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{q.enunciado?.slice(0, 150)}...</p>
-                      </div>
-                    ))}
+
+              <div style={{ maxHeight: 450, overflow: 'auto', marginBottom: 24, padding: 4, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {importResult.questoes?.map((q, i) => (
+                  <div key={i} className="card" style={{ background: 'rgba(255,255,255,0.02)', padding: 16 }}>
+                    <div className="flex-row gap-8" style={{ marginBottom: 10 }}>
+                      <span className={`badge ${q.tipo === 'objetiva' ? 'badge-cyan' : 'badge-violet'}`}>{q.tipo}</span>
+                      <span className="badge badge-warning">{q.dificuldade}</span>
+                      {q.gabarito && <span className="badge badge-success">Gabarito: {q.gabarito}</span>}
+                      {q.subtema && <span className="badge badge-violet" style={{opacity:0.7}}>{q.subtema}</span>}
+                    </div>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {q.enunciado?.slice(0, 180)}...
+                    </p>
                   </div>
-                  <div className="form-group">
-                    <label className="form-label">Salvar na matéria:</label>
-                    <select className="form-select" id="import-materia" defaultValue="">
-                      <option value="" disabled>Selecione...</option>
-                      {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                    </select>
-                  </div>
-                  <div className="modal-footer">
-                    <button className="btn btn-secondary" onClick={() => setModalImport(false)}>Cancelar</button>
-                    <button className="btn btn-primary" onClick={() => salvarQuestoesImportadas(document.getElementById('import-materia').value)}>
-                      <FileText size={16} /> Importar {importResult.questoes.length} Questões
-                    </button>
-                  </div>
-                </>
-              ) : <p style={{ color: 'var(--text-muted)' }}>Nenhuma questão identificada.</p>}
+                ))}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Destinar estas questões para a matéria:</label>
+                <select className="form-select" id="import-materia" defaultValue="" style={{ height: 50, fontSize: '1rem' }}>
+                  <option value="" disabled>Selecione uma disciplina da sua grade...</option>
+                  {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+              </div>
+
+              <div className="modal-footer" style={{ border: 'none', padding: 0, marginTop: 32 }}>
+                <button className="btn btn-secondary" onClick={() => setModalImport(false)}>Cancelar Importação</button>
+                <button className="btn btn-primary btn-lg" onClick={() => salvarQuestoesImportadas(document.getElementById('import-materia').value)}>
+                  <Plus size={18} /> Confirmar e Salvar no Banco
+                </button>
+              </div>
             </div>
           </div>
         </div>

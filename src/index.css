@@ -177,7 +177,55 @@ body {
   margin-top: 2px;
 }
 
-.page-body { padding: 32px; flex: 1; }
+.page-body { padding: 32px; flex: 1; display: flex; flex-direction: column; }
+
+.container-center {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.glass-toolbar {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+.question-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.question-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), var(--shadow-glow);
+}
+
+.question-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--gradient-1);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.question-card:hover::before {
+  opacity: 1;
+}
 
 /* ===== CARDS ===== */
 .card {
