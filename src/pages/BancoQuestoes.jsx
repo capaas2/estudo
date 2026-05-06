@@ -103,10 +103,12 @@ export default function BancoQuestoes() {
     }
 
     if (form.id) {
-      await supabase.from('questoes').update(dados).eq('id', form.id)
+      const { error } = await supabase.from('questoes').update(dados).eq('id', form.id)
+      if (error?.code === '23505') return toast('Já existe outra questão com este enunciado!', 'error')
       toast('Questão atualizada!', 'success')
     } else {
-      await supabase.from('questoes').insert(dados)
+      const { error } = await supabase.from('questoes').insert(dados)
+      if (error?.code === '23505') return toast('Esta questão já existe no banco de dados!', 'error')
       toast('Questão criada!', 'success')
     }
     setModal(null)
@@ -164,6 +166,8 @@ export default function BancoQuestoes() {
   async function salvarQuestoesImportadas(materiaId) {
     if (!materiaId || !importResult?.questoes?.length) return
     let count = 0
+    let duplicados = 0
+    
     for (const q of importResult.questoes) {
       const dados = {
         tipo: q.tipo, materia_id: materiaId, enunciado: q.enunciado,
@@ -172,9 +176,19 @@ export default function BancoQuestoes() {
         explicacao: q.explicacao || '', subitens: q.subitens || []
       }
       const { error } = await supabase.from('questoes').insert(dados)
-      if (!error) count++
+      if (!error) {
+        count++
+      } else if (error.code === '23505') {
+        duplicados++
+      }
     }
-    toast(`${count} questões importadas!`, 'success')
+
+    if (duplicados > 0) {
+      toast(`${count} novas questões importadas. ${duplicados} duplicatas foram ignoradas.`, 'info')
+    } else {
+      toast(`${count} questões importadas com sucesso!`, 'success')
+    }
+
     setModalImport(false)
     setImportResult(null)
     carregar()
