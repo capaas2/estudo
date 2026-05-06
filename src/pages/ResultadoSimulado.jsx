@@ -173,11 +173,23 @@ export default function ResultadoSimulado() {
 
                 {q.tipo === 'objetiva' ? (
                   <div style={{ padding: 12, background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: '0.85rem' }}>
-                    <div className="flex-row gap-8">
-                      <span>Sua resposta: <strong style={{ color: r.esta_correta ? 'var(--success)' : 'var(--error)' }}>{r.resposta_objetiva || '—'}</strong></span>
-                      {!r.esta_correta && <span>• Gabarito: <strong style={{ color: 'var(--success)' }}>{q.gabarito}</strong></span>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Sua resposta: </span>
+                        <strong style={{ color: r.esta_correta ? 'var(--success)' : 'var(--error)' }}>
+                          {r.resposta_objetiva ? `${r.resposta_objetiva.toUpperCase()}) ${q.alternativas?.find(a => a.letra.toLowerCase() === r.resposta_objetiva.toLowerCase())?.texto || ''}` : 'Não respondida'}
+                        </strong>
+                      </div>
+                      {!r.esta_correta && (
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>Gabarito: </span>
+                          <strong style={{ color: 'var(--success)' }}>
+                            {q.gabarito ? `${q.gabarito.toUpperCase()}) ${q.alternativas?.find(a => a.letra.toLowerCase() === q.gabarito.toLowerCase())?.texto || ''}` : '—'}
+                          </strong>
+                        </div>
+                      )}
                     </div>
-                    {r.feedback_ia && <p style={{ marginTop: 8, color: 'var(--text-secondary)' }}>{r.feedback_ia}</p>}
+                    {r.feedback_ia && <p style={{ marginTop: 8, color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)', paddingTop: 8 }}>{r.feedback_ia}</p>}
                   </div>
                 ) : r.correcao_ia ? (
                   <div>
