@@ -14,26 +14,29 @@ export default function CriarSimulado() {
   const [materias, setMaterias] = useState([])
   const [subtemas, setSubtemas] = useState([])
   const [questoes, setQuestoes] = useState([])
+  const [respondidasIds, setRespondidasIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [criando, setCriando] = useState(false)
 
   const [form, setForm] = useState({
     titulo: '', materia_id: materiaId || '', subtema_id: '', dificuldade: '',
-    tipo: 'manual', cronometro_visivel: true, selecionadas: []
+    tipo: 'manual', cronometro_visivel: true, excluir_feitas: false, selecionadas: []
   })
 
   useEffect(() => { carregar() }, [])
 
   async function carregar() {
     setLoading(true)
-    const [{ data: m }, { data: s }, { data: q }] = await Promise.all([
+    const [{ data: m }, { data: s }, { data: q }, { data: r }] = await Promise.all([
       supabase.from('materias').select('*').order('nome'),
       supabase.from('subtemas').select('*'),
-      supabase.from('questoes').select('*').order('criado_em', { ascending: false })
+      supabase.from('questoes').select('*').order('criado_em', { ascending: false }),
+      supabase.from('respostas_simulado').select('questao_id').eq('user_id', user.id)
     ])
     setMaterias(m || [])
     setSubtemas(s || [])
     setQuestoes(q || [])
+    setRespondidasIds(new Set((r || []).map(x => x.questao_id)))
     setLoading(false)
   }
 
@@ -42,6 +45,7 @@ export default function CriarSimulado() {
     if (q.materia_id !== form.materia_id) return false
     if (form.subtema_id && q.subtema_id !== form.subtema_id) return false
     if (form.dificuldade && q.dificuldade !== form.dificuldade) return false
+    if (form.excluir_feitas && respondidasIds.has(q.id)) return false
     return true
   })
 
@@ -60,7 +64,11 @@ export default function CriarSimulado() {
     if (!form.materia_id) return toast('Selecione uma matéria', 'error')
     setCriando(true)
     try {
-      const { data: respostas } = await supabase.from('respostas_simulado').select('questao_id, esta_correta').eq('esta_correta', false)
+      const { data: respostas } = await supabase.from('respostas_simulado')
+        .select('questao_id, esta_correta')
+        .eq('user_id', user.id)
+        .eq('esta_correta', false)
+      
       const erros = {}
       ;(respostas || []).forEach(r => {
         const q = questoes.find(x => x.id === r.questao_id)
@@ -156,10 +164,14 @@ export default function CriarSimulado() {
                 <option value="dificil">Difícil</option>
               </select>
             </div>
-            <div className="form-group">
+            <div className="form-group flex-row gap-16">
               <label className="flex-row gap-8" style={{ cursor: 'pointer' }}>
                 <input type="checkbox" checked={form.cronometro_visivel} onChange={e => setForm({...form, cronometro_visivel: e.target.checked})} />
                 <span className="form-label" style={{ margin: 0 }}>Exibir cronômetro</span>
+              </label>
+              <label className="flex-row gap-8" style={{ cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.excluir_feitas} onChange={e => setForm({...form, excluir_feitas: e.target.checked, selecionadas: []})} />
+                <span className="form-label" style={{ margin: 0 }}>Excluir já feitas</span>
               </label>
             </div>
             <div className="flex-row gap-8">
@@ -192,6 +204,7 @@ export default function CriarSimulado() {
                     <div className="flex-row gap-8" style={{ marginBottom: 4 }}>
                       <span className={`badge ${q.tipo === 'objetiva' ? 'badge-cyan' : 'badge-violet'}`} style={{ fontSize: '0.65rem' }}>{q.tipo}</span>
                       <span className={`badge ${q.dificuldade === 'facil' ? 'badge-success' : q.dificuldade === 'dificil' ? 'badge-error' : 'badge-warning'}`} style={{ fontSize: '0.65rem' }}>{q.dificuldade}</span>
+                      {respondidasIds.has(q.id) && <span className="badge badge-secondary" style={{ fontSize: '0.65rem' }}>Já feita</span>}
                     </div>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
                       {q.enunciado.length > 100 ? q.enunciado.slice(0, 100) + '...' : q.enunciado}
