@@ -168,13 +168,45 @@ export default function BancoQuestoes() {
     let count = 0
     let duplicados = 0
     
+    // Cache de subtemas existentes para evitar consultas repetidas
+    const { data: subsExistentes } = await supabase.from('subtemas').select('id, nome').eq('materia_id', materiaId)
+    const mapaSubtemas = new Map((subsExistentes || []).map(s => [s.nome.toLowerCase(), s.id]))
+
     for (const q of importResult.questoes) {
-      const dados = {
-        tipo: q.tipo, materia_id: materiaId, enunciado: q.enunciado,
-        dificuldade: q.dificuldade || 'medio', peso: 1, tags: q.tags || [],
-        alternativas: q.alternativas || [], gabarito: q.gabarito || '',
-        explicacao: q.explicacao || '', subitens: q.subitens || []
+      let subtemaId = null
+      const nomeSub = q.subtema || q.tags?.[0] || 'Geral'
+      
+      const nomeNormalizado = nomeSub.trim().toLowerCase()
+      if (mapaSubtemas.has(nomeNormalizado)) {
+        subtemaId = mapaSubtemas.get(nomeNormalizado)
+      } else {
+        // Criar novo subtema
+        const { data: novoSub, error: errSub } = await supabase
+          .from('subtemas')
+          .insert({ materia_id: materiaId, nome: nomeSub.trim() })
+          .select()
+          .single()
+        
+        if (!errSub && novoSub) {
+          subtemaId = novoSub.id
+          mapaSubtemas.set(nomeNormalizado, subtemaId)
+        }
       }
+
+      const dados = {
+        tipo: q.tipo, 
+        materia_id: materiaId, 
+        subtema_id: subtemaId,
+        enunciado: q.enunciado,
+        dificuldade: q.dificuldade || 'medio', 
+        peso: 1, 
+        tags: q.tags || [],
+        alternativas: q.alternativas || [], 
+        gabarito: q.gabarito || '',
+        explicacao: q.explicacao || '', 
+        subitens: q.subitens || []
+      }
+
       const { error } = await supabase.from('questoes').insert(dados)
       if (!error) {
         count++
@@ -184,9 +216,9 @@ export default function BancoQuestoes() {
     }
 
     if (duplicados > 0) {
-      toast(`${count} novas questões importadas. ${duplicados} duplicatas foram ignoradas.`, 'info')
+      toast(`${count} novas questões importadas em seus respectivos subtemas. ${duplicados} duplicatas ignoradas.`, 'info')
     } else {
-      toast(`${count} questões importadas com sucesso!`, 'success')
+      toast(`${count} questões importadas e organizadas por subtema!`, 'success')
     }
 
     setModalImport(false)

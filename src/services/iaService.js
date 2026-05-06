@@ -401,7 +401,8 @@ O JSON deve seguir este formato exato:
       "gabarito": "Sua resposta geral ou alternativa correta...",
       "explicacao": "Explicação detalhada da questão...",
       "dificuldade": "medio",
-      "tags": ["assunto"]
+      "subtema": "Assunto principal específico (ex: Mitose, Equações de 2º grau, Revolução Francesa)",
+      "tags": ["assunto", "palavra-chave"]
     }
   ],
   "total_encontradas": "número total de questões extraídas",
