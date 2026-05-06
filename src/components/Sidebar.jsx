@@ -1,8 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import { 
   LayoutDashboard, BookOpen, Settings, Database, 
-  FileText, ClipboardList, GraduationCap, LogOut, User
+  FileText, ClipboardList, GraduationCap, LogOut, User, Users
 } from 'lucide-react'
 
 const links = [
@@ -16,16 +18,53 @@ const links = [
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
+  const [userCount, setUserCount] = useState(null)
+
+  const isGustavo = user?.email === 'gustavocapaz06@gmail.com'
+
+  useEffect(() => {
+    async function fetchUserCount() {
+      if (isGustavo) {
+        const { data, error } = await supabase.rpc('get_user_count')
+        if (!error && data !== null) {
+          setUserCount(data)
+        }
+      }
+    }
+    fetchUserCount()
+  }, [isGustavo])
 
   const nomeUsuario = user?.user_metadata?.nome || user?.email?.split('@')[0] || 'Usuário'
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-icon">
-          <GraduationCap size={22} color="white" />
+      <div className="sidebar-logo" style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="logo-icon">
+            <GraduationCap size={22} color="white" />
+          </div>
+          <h1>StudyPro</h1>
         </div>
-        <h1>StudyPro</h1>
+        {isGustavo && userCount !== null && (
+          <div 
+            title="Total de usuários cadastrados"
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginLeft: 'auto'
+            }}
+          >
+            <Users size={14} color="var(--primary-color, #8b5cf6)" />
+            {userCount}
+          </div>
+        )}
       </div>
 
       {/* Info do Usuário */}
