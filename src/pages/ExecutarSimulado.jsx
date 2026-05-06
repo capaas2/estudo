@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { corrigirDiscursiva, analisarDesempenho } from '../services/iaService'
-import { Clock, ChevronLeft, ChevronRight, Send, EyeOff, Eye, AlertTriangle } from 'lucide-react'
+import { Clock, ChevronLeft, ChevronRight, Send, EyeOff, Eye, AlertTriangle, LayoutGrid } from 'lucide-react'
 
 export default function ExecutarSimulado() {
   const { id } = useParams()
@@ -18,6 +18,7 @@ export default function ExecutarSimulado() {
   const [tempoTotal, setTempoTotal] = useState(0)
   const [temposQuestao, setTemposQuestao] = useState({})
   const [cronVisivel, setCronVisivel] = useState(true)
+  const [navVisivel, setNavVisivel] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [loading, setLoading] = useState(true)
   const timerRef = useRef(null)
@@ -208,9 +209,14 @@ export default function ExecutarSimulado() {
               <Clock size={18} /> {formatTempo(tempoTotal)}
             </div>
           ) : null}
-          <button className="btn btn-secondary btn-sm" onClick={() => setCronVisivel(!cronVisivel)}>
-            {cronVisivel ? <EyeOff size={14} /> : <Eye size={14} />}
-          </button>
+          <div className="flex-row gap-8">
+            <button className="btn btn-secondary btn-sm" onClick={() => setCronVisivel(!cronVisivel)} title={cronVisivel ? "Ocultar Cronômetro" : "Mostrar Cronômetro"}>
+              {cronVisivel ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setNavVisivel(!navVisivel)} title={navVisivel ? "Ocultar Navegação" : "Mostrar Navegação"}>
+              <LayoutGrid size={14} />
+            </button>
+          </div>
           <button className="btn btn-primary btn-sm" onClick={enviarSimulado}><Send size={14} /> Finalizar</button>
         </div>
       </div>
@@ -221,20 +227,22 @@ export default function ExecutarSimulado() {
       </div>
 
       {/* Navegação de questões */}
-      <div style={{ padding: '8px 24px', background: 'var(--bg-tertiary)', display: 'flex', gap: 6, overflowX: 'auto', flexWrap: 'wrap' }}>
-        {questoes.map((_, i) => {
-          const qid = questoes[i].id
-          const respondida = respostasRef.current[qid]?.objetiva || (respostasRef.current[qid]?.discursivas || []).some(d => d?.trim())
-          return (
-            <button key={i} onClick={() => irPara(i)} style={{
-              width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
-              background: i === atual ? 'var(--accent-cyan)' : respondida ? 'var(--success-dim)' : 'var(--bg-card)',
-              color: i === atual ? 'white' : respondida ? 'var(--success)' : 'var(--text-secondary)',
-              transition: 'var(--transition)'
-            }}>{i + 1}</button>
-          )
-        })}
-      </div>
+      {navVisivel && (
+        <div className="fade-in" style={{ padding: '8px 24px', background: 'var(--bg-tertiary)', display: 'flex', gap: 6, overflowX: 'auto', flexWrap: 'wrap', borderBottom: '1px solid var(--border-color)' }}>
+          {questoes.map((_, i) => {
+            const qid = questoes[i].id
+            const respondida = respostasRef.current[qid]?.objetiva || (respostasRef.current[qid]?.discursivas || []).some(d => d?.trim())
+            return (
+              <button key={i} onClick={() => irPara(i)} style={{
+                width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
+                background: i === atual ? 'var(--accent-cyan)' : respondida ? 'var(--success-dim)' : 'var(--bg-card)',
+                color: i === atual ? 'white' : respondida ? 'var(--success)' : 'var(--text-secondary)',
+                transition: 'var(--transition)'
+              }}>{i + 1}</button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Questão */}
       <div style={{ flex: 1, overflow: 'auto', padding: 32 }}>
