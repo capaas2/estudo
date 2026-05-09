@@ -8,7 +8,7 @@ import { useEffect } from 'react'
 import Sidebar from './Sidebar'
 import { motion } from 'framer-motion'
 
-export default function AppShell({ children }: { children: ReactNode }) {
+export default function AppShell({ children, showSidebar = true }: { children: ReactNode, showSidebar?: boolean }) {
   const { user, loading } = useAuth()
   const { sidebarCollapsed } = useAppStore()
   const router = useRouter()
@@ -34,10 +34,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#0a0e1a]">
-      <Sidebar />
+      {showSidebar && <Sidebar />}
       <motion.main
         initial={false}
-        animate={{ marginLeft: sidebarCollapsed ? 68 : 260 }}
+        animate={{ marginLeft: showSidebar ? (sidebarCollapsed ? 68 : 260) : 0 }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
         className="flex-1 min-h-screen"
       >
