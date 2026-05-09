@@ -45,6 +45,7 @@ interface QuestionsTabProps {
   mainColor: string
 }
 
+export default function QuestionsTab({ materiaId, workspaceId, mainColor }: QuestionsTabProps) {
   const toast = useToast()
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
