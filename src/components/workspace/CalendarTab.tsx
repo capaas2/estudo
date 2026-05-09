@@ -86,7 +86,12 @@ export default function CalendarTab({ materiaId, workspaceId, mainColor }: Calen
         data_inicio: form.data_inicio,
         data_fim: form.data_fim || null,
         descricao: form.descricao || null,
-        cor: form.tipo === 'aula' ? '#3b82f6' : (form.tipo === 'prova' ? '#ef4444' : '#f59e0b')
+        cor: form.tipo === 'aula' ? '#3b82f6' : 
+             form.tipo === 'prova' ? '#ef4444' : 
+             form.tipo === 'trabalho' ? '#f59e0b' : 
+             form.tipo === 'abertura' ? '#8b5cf6' : 
+             form.tipo === 'fechamento' ? '#10b981' : 
+             '#64748b'
       })
 
       if (error) throw error
@@ -214,6 +219,14 @@ export default function CalendarTab({ materiaId, workspaceId, mainColor }: Calen
                     <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
                     <span className="text-[10px] font-bold text-slate-300 uppercase">Trabalhos</span>
                  </div>
+                 <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-violet-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]" />
+                    <span className="text-[10px] font-bold text-slate-300 uppercase">Abertura de Problema</span>
+                 </div>
+                 <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                    <span className="text-[10px] font-bold text-slate-300 uppercase">Fechamento de Problema</span>
+                 </div>
               </div>
            </div>
         </div>
@@ -247,6 +260,8 @@ export default function CalendarTab({ materiaId, workspaceId, mainColor }: Calen
                       <option value="aula">Aula</option>
                       <option value="prova">Prova</option>
                       <option value="trabalho">Trabalho</option>
+                      <option value="abertura">Abertura de Problema</option>
+                      <option value="fechamento">Fechamento de Problema</option>
                       <option value="evento">Outro</option>
                     </select>
                   </div>
