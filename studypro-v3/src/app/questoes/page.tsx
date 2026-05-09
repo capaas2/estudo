@@ -411,14 +411,14 @@ export default function QuestoesPage() {
                   <div className="grid-2">
                     <div className="form-group">
                       <label className="form-label">Tipo de Questão</label>
-                      <select className="form-select" value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value})}>
+                      <select className="form-select" value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value as 'objetiva' | 'discursiva'})}>
                         <option value="objetiva">Objetiva (Múltipla Escolha)</option>
                         <option value="discursiva">Discursiva (Resposta Aberta)</option>
                       </select>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Dificuldade</label>
-                      <select className="form-select" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value})}>
+                      <select className="form-select" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value as 'facil' | 'medio' | 'dificil'})}>
                         <option value="facil">Fácil</option>
                         <option value="medio">Médio</option>
                         <option value="dificil">Difícil</option>
