@@ -56,15 +56,30 @@ export default function DashboardPage() {
       supabase.from('respostas_simulado').select('questao_id, esta_correta'),
       supabase.from('questoes').select('id, materia_id, subtema_id'),
       supabase.from('subtemas').select('id, nome'),
-      supabase.from('periods').select('numero, nome, status, progresso').order('numero'),
+      supabase.from('periods').select('numero, nome, status, progresso, subjects_workspace(progresso)').order('numero'),
       supabase.from('reviews').select('id').eq('status', 'pendente'),
     ])
+
+    let computedPeriods = p || [];
+    if (computedPeriods.length > 0) {
+      computedPeriods = computedPeriods.map((period: any) => {
+        let computedProgress = period.progresso;
+        if (period.subjects_workspace && period.subjects_workspace.length > 0) {
+          const sum = period.subjects_workspace.reduce((acc: number, sw: any) => acc + (sw.progresso || 0), 0)
+          computedProgress = Math.round(sum / period.subjects_workspace.length)
+        } else if (period.subjects_workspace && period.subjects_workspace.length === 0) {
+          computedProgress = 0;
+        }
+        return { ...period, progresso: computedProgress }
+      });
+    }
+
     setSimulados((s || []) as SimuladoData[])
     setMaterias(m || [])
     setRespostas(r || [])
     setQuestoes(q || [])
     setSubtemas(st || [])
-    setPeriods(p || [])
+    setPeriods(computedPeriods)
     setReviewCount(rv?.length || 0)
     setLoading(false)
   }

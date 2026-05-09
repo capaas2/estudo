@@ -43,9 +43,19 @@ export default function PeriodosPage() {
 
   async function carregar() {
     setLoading(true)
-    const { data } = await supabase.from('periods').select('*').order('numero')
+    const { data } = await supabase.from('periods').select('*, subjects_workspace(progresso)').order('numero')
     if (data && data.length > 0) {
-      setPeriods(data)
+      const periodsWithProgress = data.map((p: any) => {
+        let computedProgress = p.progresso;
+        if (p.subjects_workspace && p.subjects_workspace.length > 0) {
+          const sum = p.subjects_workspace.reduce((acc: number, sw: any) => acc + (sw.progresso || 0), 0)
+          computedProgress = Math.round(sum / p.subjects_workspace.length)
+        } else if (p.subjects_workspace && p.subjects_workspace.length === 0) {
+          computedProgress = 0;
+        }
+        return { ...p, progresso: computedProgress }
+      })
+      setPeriods(periodsWithProgress)
     } else {
       setPeriods(Array.from({ length: 12 }, (_, i) => ({
         numero: i + 1, nome: `${i + 1}º Período`, status: 'nao_iniciado', progresso: 0, meta_horas_semana: 20

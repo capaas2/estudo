@@ -54,20 +54,31 @@ export default function PeriodoIndividual({ params }: { params: Promise<{ id: st
         router.push('/periodos')
         return
       }
-      setPeriodo(periodData)
 
       const isRealPeriod = !periodData.id.startsWith('fallback')
 
       // Carrega Matérias (se o período existir de fato)
+      let computedProgress = periodData.progresso;
       if (isRealPeriod) {
         const { data: subs } = await supabase
           .from('subjects_workspace')
           .select('*, materias(*)')
           .eq('period_id', periodData.id)
+        
         setSubjectsWorkspace(subs || [])
+        
+        if (subs && subs.length > 0) {
+          const sum = subs.reduce((acc: number, sw: any) => acc + (sw.progresso || 0), 0)
+          computedProgress = Math.round(sum / subs.length)
+        } else {
+          computedProgress = 0;
+        }
       } else {
         setSubjectsWorkspace([])
+        computedProgress = 0;
       }
+      
+      setPeriodo({ ...periodData, progresso: computedProgress })
 
       // Carrega Metas do usuário vinculadas ao período
       if (isRealPeriod) {
