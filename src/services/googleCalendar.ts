@@ -68,7 +68,7 @@ export class GoogleCalendarService {
   }
 
   static async syncEvents(events: GoogleCalendarEvent[], userId: string, targetMateriaId: string) {
-    const keywordRegex = /tutoria|conferencia|conferência|consultoria|consutoria|conferéncia/i
+    const keywordRegex = /tutoria|conferencia|conferência|consultoria|consutoria|conferéncia|clube de revista|clube de revistas/i
 
     for (const event of events) {
       const isTarget = keywordRegex.test(event.summary)

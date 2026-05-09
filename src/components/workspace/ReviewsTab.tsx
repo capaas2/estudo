@@ -137,20 +137,20 @@ export default function ReviewsTab({ materiaId, workspaceId, mainColor }: Review
   const upcomingReviews = reviews.filter(r => r.status === 'concluida' && r.proxima_revisao && !isPast(new Date(r.proxima_revisao)))
 
   return (
-    <div className="h-full grid grid-cols-12 gap-8">
+    <div className="h-full flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
       {/* Coluna Principal: Próximas Revisões */}
-      <div className="col-span-8 flex flex-col gap-6">
-        <header className="flex items-center justify-between">
+      <div className="flex flex-col gap-6 lg:col-span-8">
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
            <div>
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                  <Brain size={24} style={{ color: mainColor }} />
                  Ciclo de Revisões
               </h3>
-              <p className="text-sm text-slate-500 mt-1">Algoritmo de Repetição Espaçada ativo para esta matéria.</p>
+              <p className="text-sm text-slate-500 mt-1">Algoritmo de Repetição Espaçada ativo.</p>
            </div>
            <button 
              onClick={() => setIsAdding(true)}
-             className="px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all flex items-center gap-2"
+             className="w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all flex items-center justify-center gap-2"
            >
              <Plus size={16} /> Nova Revisão
            </button>
@@ -166,28 +166,30 @@ export default function ReviewsTab({ materiaId, workspaceId, mainColor }: Review
               style={{ borderColor: `${mainColor}40` }}
             >
               <h4 className="text-sm font-bold text-slate-200 mb-4 uppercase tracking-widest">O que você quer revisar?</h4>
-              <div className="flex gap-4">
+               <div className="flex flex-col sm:flex-row gap-4">
                 <input 
                   autoFocus
                   type="text" 
-                  placeholder="Ex: Ciclo de Krebs, Artigo 5º da CF..."
+                  placeholder="Ex: Ciclo de Krebs..."
                   value={newReviewTitle}
                   onChange={(e) => setNewReviewTitle(e.target.value)}
                   className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white/20 transition-all text-white"
                 />
-                <button 
-                  onClick={addReview}
-                  className="px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all"
-                  style={{ backgroundColor: mainColor }}
-                >
-                  Agendar
-                </button>
-                <button 
-                  onClick={() => setIsAdding(false)}
-                  className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:text-slate-300 transition-all"
-                >
-                  Cancelar
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={addReview}
+                    className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all"
+                    style={{ backgroundColor: mainColor }}
+                  >
+                    Agendar
+                  </button>
+                  <button 
+                    onClick={() => setIsAdding(false)}
+                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:text-slate-300 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -209,11 +211,11 @@ export default function ReviewsTab({ materiaId, workspaceId, mainColor }: Review
                {pendingReviews.map(review => (
                  <div key={review.id} className="glass-card p-6 flex items-center justify-between group border-white/[0.05] hover:border-white/20 transition-all">
                     <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                       <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform flex-shrink-0">
                           <RefreshCw size={20} />
                        </div>
-                       <div>
-                          <h5 className="font-bold text-white group-hover:text-cyan-400 transition-colors">{review.titulo}</h5>
+                       <div className="min-w-0">
+                          <h5 className="font-bold text-white group-hover:text-cyan-400 transition-colors truncate">{review.titulo}</h5>
                           <div className="flex items-center gap-3 mt-1">
                              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-500 uppercase font-bold">
                                 {review.tipo}
@@ -276,7 +278,7 @@ export default function ReviewsTab({ materiaId, workspaceId, mainColor }: Review
       </div>
 
       {/* Coluna Lateral: Estatísticas e Insights */}
-      <div className="col-span-4 space-y-6">
+      <div className="lg:col-span-4 space-y-6">
          <div className="glass-card p-6 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/20">
             <h4 className="font-bold text-white mb-6 flex items-center gap-2">
                <TrendingUp size={18} className="text-cyan-400" />

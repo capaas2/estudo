@@ -13,11 +13,21 @@ import {
   Plus,
   Target,
   BarChart2,
-  BookOpen
+  BookOpen,
+  X,
+  Upload,
+  Sparkles,
+  Brain,
+  Layers,
+  Save,
+  Trash2
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useToast } from '@/components/shared/Toast'
+import { extrairQuestoesDePDF, gerarGabaritoIA } from '@/services/iaService'
+import { uploadImagemQuestao } from '@/services/storageService'
 
 interface Question {
   id: string
@@ -35,7 +45,7 @@ interface QuestionsTabProps {
   mainColor: string
 }
 
-export default function QuestionsTab({ materiaId, workspaceId, mainColor }: QuestionsTabProps) {
+  const toast = useToast()
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -44,6 +54,25 @@ export default function QuestionsTab({ materiaId, workspaceId, mainColor }: Ques
     acertos: 0,
     erros: 0,
     taxa: 0
+  })
+
+  // Modais
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showIAModal, setShowIAModal] = useState(false)
+  const [iaContent, setIaContent] = useState('')
+  const [iaLoading, setIaLoading] = useState(false)
+  const [gerandoGab, setGerandoGab] = useState(false)
+
+  const [form, setForm] = useState<any>({
+    tipo: 'objetiva', 
+    enunciado: '', 
+    dificuldade: 'medio', 
+    alternativas: [
+      { letra: 'A', texto: '' },{ letra: 'B', texto: '' },{ letra: 'C', texto: '' },{ letra: 'D', texto: '' },{ letra: 'E', texto: '' }
+    ],
+    gabarito: '', 
+    explicacao: '',
+    subitens: [{ letra: 'a', texto: '', gabarito: '', criterios: '' }]
   })
 
   useEffect(() => {
@@ -114,12 +143,88 @@ export default function QuestionsTab({ materiaId, workspaceId, mainColor }: Ques
 
   const filteredQuestions = questions.filter(q => 
     q.enunciado.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.assunto.toLowerCase().includes(searchQuery.toLowerCase())
+    (q.assunto && q.assunto.toLowerCase().includes(searchQuery.toLowerCase()))
   )
+
+  async function salvarQuestao(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.enunciado?.trim()) return toast('Preencha o enunciado', 'error')
+
+    try {
+      const dados = {
+        materia_id: materiaId,
+        tipo: form.tipo,
+        enunciado: form.enunciado,
+        dificuldade: form.dificuldade,
+        alternativas: form.tipo === 'objetiva' ? form.alternativas : [],
+        gabarito: form.tipo === 'objetiva' ? form.gabarito : '',
+        explicacao: form.explicacao,
+        subitens: form.tipo === 'discursiva' ? form.subitens : []
+      }
+
+      const { error } = await supabase.from('questoes').insert(dados)
+      if (error) throw error
+
+      toast('Questão criada!', 'success')
+      setShowAddModal(false)
+      fetchQuestionsAndStats()
+    } catch (error) {
+      console.error(error)
+      toast('Erro ao salvar questão', 'error')
+    }
+  }
+
+  async function gerarIA() {
+    if (!iaContent) return toast('Insira o texto para gerar questões', 'error')
+    setIaLoading(true)
+    try {
+      toast('IA analisando e gerando questões...', 'info')
+      const result = await extrairQuestoesDePDF(iaContent) // Reaproveitando a lógica de extração que gera JSON
+      const list = (result as any).questoes || []
+      
+      if (list.length === 0) throw new Error('Nenhuma questão gerada')
+
+      const insertData = list.map((q: any) => ({
+        materia_id: materiaId,
+        tipo: q.tipo,
+        enunciado: q.enunciado,
+        dificuldade: q.dificuldade || 'medio',
+        alternativas: q.alternativas || [],
+        gabarito: q.gabarito || '',
+        explicacao: q.explicacao || '',
+        subitens: q.subitens || []
+      }))
+
+      const { error } = await supabase.from('questoes').insert(insertData)
+      if (error) throw error
+
+      toast(`${list.length} questões geradas com sucesso!`, 'success')
+      setShowIAModal(false)
+      setIaContent('')
+      fetchQuestionsAndStats()
+    } catch (error) {
+      console.error(error)
+      toast('Erro ao gerar questões com IA', 'error')
+    } finally {
+      setIaLoading(false)
+    }
+  }
+
+  async function deleteQuestion(id: string) {
+    if (!confirm('Deseja excluir esta questão?')) return
+    try {
+      const { error } = await supabase.from('questoes').delete().eq('id', id)
+      if (error) throw error
+      toast('Questão excluída', 'info')
+      fetchQuestionsAndStats()
+    } catch (error) {
+      toast('Erro ao excluir', 'error')
+    }
+  }
 
   return (
     <div className="h-full flex flex-col gap-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <HelpCircle size={24} style={{ color: mainColor }} />
@@ -128,19 +233,39 @@ export default function QuestionsTab({ materiaId, workspaceId, mainColor }: Ques
           <p className="text-sm text-slate-500 mt-1">Pratique e valide seu conhecimento com simulados e exercícios.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <button className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-bold text-sm hover:text-white transition-all flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button 
+            onClick={() => setShowIAModal(true)}
+            className="flex-1 sm:flex-none p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20 transition-all flex items-center justify-center gap-2"
+            title="Gerar com IA"
+          >
+            <Sparkles size={18} />
+            <span className="text-xs font-bold">IA</span>
+          </button>
+          <button className="hidden sm:flex px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 font-bold text-sm hover:text-white transition-all items-center gap-2">
              <BookOpen size={16} /> Ver Teoria
           </button>
-          <button className="px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all hover:scale-105 active:scale-95 flex items-center gap-2" style={{ backgroundColor: mainColor }}>
-             <Plus size={16} /> Nova Questão
+          <button 
+            onClick={() => {
+              setForm({
+                tipo: 'objetiva', enunciado: '', dificuldade: 'medio', alternativas: [
+                  { letra: 'A', texto: '' },{ letra: 'B', texto: '' },{ letra: 'C', texto: '' },{ letra: 'D', texto: '' },{ letra: 'E', texto: '' }
+                ],
+                gabarito: '', explicacao: '', subitens: [{ letra: 'a', texto: '', gabarito: '', criterios: '' }]
+              })
+              setShowAddModal(true)
+            }}
+            className="flex-[2] sm:flex-none px-5 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-center" 
+            style={{ backgroundColor: mainColor }}
+          >
+             <Plus size={16} /> <span className="whitespace-nowrap">Nova Questão</span>
           </button>
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-12 gap-8 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-8 overflow-hidden">
         {/* Lista de Questões */}
-        <div className="col-span-8 flex flex-col gap-6 overflow-hidden">
+        <div className="order-2 lg:order-1 lg:col-span-8 flex flex-col gap-6 overflow-hidden">
           <div className="flex gap-4">
              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -200,7 +325,7 @@ export default function QuestionsTab({ materiaId, workspaceId, mainColor }: Ques
         </div>
 
         {/* Estatísticas de Desempenho */}
-        <div className="col-span-4 space-y-6">
+        <div className="order-1 lg:order-2 lg:col-span-4 space-y-6">
            <div className="glass-card p-6 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border-emerald-500/20">
               <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
                  <Target size={16} className="text-emerald-400" />
@@ -257,6 +382,95 @@ export default function QuestionsTab({ materiaId, workspaceId, mainColor }: Ques
            </div>
         </div>
       </div>
+
+      {/* Modal Nova Questão */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#0d1221] border border-white/10 rounded-[2.5rem] w-full max-w-2xl relative z-10 shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                <h4 className="text-xl font-bold text-white">Nova Questão</h4>
+                <button onClick={() => setShowAddModal(false)} className="p-2 rounded-full hover:bg-white/5 text-slate-500"><X size={20} /></button>
+              </div>
+              <form onSubmit={salvarQuestao} className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Tipo</label>
+                    <select className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-white/20" value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value})}>
+                      <option value="objetiva">Objetiva</option>
+                      <option value="discursiva">Discursiva</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Dificuldade</label>
+                    <select className="w-full bg-white/5 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-white/20" value={form.dificuldade} onChange={e => setForm({...form, dificuldade: e.target.value})}>
+                      <option value="facil">Fácil</option>
+                      <option value="medio">Médio</option>
+                      <option value="dificil">Difícil</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Enunciado</label>
+                  <textarea className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-white/20 h-32 resize-none" value={form.enunciado} onChange={e => setForm({...form, enunciado: e.target.value})} placeholder="Digite o enunciado da questão..." />
+                </div>
+
+                {form.tipo === 'objetiva' ? (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Alternativas</label>
+                    {form.alternativas.map((alt: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <button type="button" onClick={() => setForm({...form, gabarito: alt.letra})} className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs transition-all shrink-0 ${form.gabarito === alt.letra ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500 border border-white/10 hover:border-white/20'}`}>
+                          {alt.letra}
+                        </button>
+                        <input className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 text-sm text-white focus:outline-none focus:border-white/20" value={alt.texto} onChange={e => { const a = [...form.alternativas]; a[i].texto = e.target.value; setForm({...form, alternativas: a}) }} placeholder={`Alternativa ${alt.letra}...`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Gabarito Esperado</label>
+                    <textarea className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-white/20 h-32 resize-none" value={form.explicacao} onChange={e => setForm({...form, explicacao: e.target.value})} placeholder="Descreva a resposta correta e critérios de correção..." />
+                  </div>
+                )}
+              </form>
+              <div className="p-8 border-t border-white/5 flex gap-3">
+                <button onClick={() => setShowAddModal(false)} className="px-6 py-3 rounded-2xl bg-white/5 font-bold text-slate-400">Cancelar</button>
+                <button onClick={salvarQuestao} className="flex-1 py-3 rounded-2xl font-bold text-white shadow-xl" style={{ backgroundColor: mainColor }}>Criar Questão</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* IA Modal */}
+      <AnimatePresence>
+        {showIAModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowIAModal(false)} />
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-[#0d1221] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 shadow-2xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400"><Brain size={24} /></div>
+                  <div>
+                    <h4 className="text-xl font-bold text-white">Gerar Questões com IA</h4>
+                    <p className="text-xs text-slate-500">Transforme textos em questões de prova.</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                   <textarea value={iaContent} onChange={(e) => setIaContent(e.target.value)} placeholder="Cole o texto base (resumo, artigo ou aula) para gerar questões..." className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-white/20 h-64 resize-none" />
+                </div>
+                <div className="mt-8 flex gap-3">
+                   <button onClick={() => setShowIAModal(false)} className="px-6 py-3 rounded-2xl bg-white/5 font-bold text-slate-400">Cancelar</button>
+                   <button onClick={gerarIA} disabled={iaLoading} className="flex-1 py-3 rounded-2xl font-bold text-white shadow-xl flex items-center justify-center gap-2 disabled:opacity-50" style={{ backgroundColor: '#8b5cf6' }}>
+                      {iaLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Sparkles size={16} /> Gerar Questões</>}
+                   </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

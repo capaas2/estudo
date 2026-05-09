@@ -12,7 +12,8 @@ import {
   TrendingUp,
   Brain,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Edit2
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -21,9 +22,11 @@ interface OverviewTabProps {
   workspace: any
   workspaceId: string
   mainColor: string
+  onNavigate: (tab: any) => void
+  onEdit: () => void
 }
 
-export default function OverviewTab({ materia, workspace, workspaceId, mainColor }: OverviewTabProps) {
+export default function OverviewTab({ materia, workspace, workspaceId, mainColor, onNavigate, onEdit }: OverviewTabProps) {
   const [stats, setStats] = useState({
     tasksDone: 0,
     totalTasks: 0,
@@ -83,7 +86,7 @@ export default function OverviewTab({ materia, workspace, workspaceId, mainColor
   return (
     <div className="h-full flex flex-col gap-8 overflow-y-auto pr-2 custom-scrollbar">
       {/* Hero Stats */}
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
          {[
            { label: 'Progresso Geral', value: `${manualProgress}%`, icon: Trophy, color: mainColor },
            { label: 'Tarefas Ativas', value: stats.totalTasks - stats.tasksDone, icon: Target, color: '#f59e0b' },
@@ -111,9 +114,9 @@ export default function OverviewTab({ materia, workspace, workspaceId, mainColor
          ))}
       </div>
 
-      <div className="grid grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Progresso Visual */}
-        <div className="col-span-8 space-y-8">
+        <div className="lg:col-span-8 space-y-8">
            <div className="glass-card p-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-10">
                  <TrendingUp size={120} style={{ color: mainColor }} />
@@ -141,7 +144,7 @@ export default function OverviewTab({ materia, workspace, workspaceId, mainColor
               </div>
            </div>
 
-           <div className="grid grid-cols-2 gap-6">
+           <div className="grid grid-cols-1 gap-6">
               <div className="glass-card p-6">
                  <h4 className="font-bold text-white mb-4 flex items-center gap-2">
                     <Clock size={18} className="text-cyan-400" />
@@ -165,28 +168,11 @@ export default function OverviewTab({ materia, workspace, workspaceId, mainColor
                     </div>
                  </div>
               </div>
-
-              <div className="glass-card p-6">
-                 <h4 className="font-bold text-white mb-4 flex items-center gap-2">
-                    <CheckCircle2 size={18} className="text-emerald-400" />
-                    Status Acadêmico
-                 </h4>
-                 <div className="flex items-center gap-4">
-                    <div className="flex-1 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-                       <span className="text-[10px] font-black text-emerald-400 uppercase block mb-1">Média</span>
-                       <span className="text-xl font-black text-white">{stats.averageScore.toFixed(1)}</span>
-                    </div>
-                    <div className="flex-1 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-                       <span className="text-[10px] font-black text-amber-400 uppercase block mb-1">Faltas</span>
-                       <span className="text-xl font-black text-white">{stats.faltas}</span>
-                    </div>
-                 </div>
-              </div>
            </div>
         </div>
 
         {/* Timeline Rápida */}
-        <div className="col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-6">
            <div className="glass-card p-6">
               <h4 className="font-bold text-white mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
                  <Calendar size={16} style={{ color: mainColor }} />
@@ -201,8 +187,11 @@ export default function OverviewTab({ materia, workspace, workspaceId, mainColor
                    </p>
                  )}
               </div>
-              <button className="w-full mt-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center gap-2">
-                 Ver Todas as Tarefas <ArrowRight size={14} />
+              <button 
+                 onClick={() => onNavigate('tarefas')}
+                 className="w-full mt-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+              >
+                  Ver Todas as Tarefas <ArrowRight size={14} />
               </button>
            </div>
 

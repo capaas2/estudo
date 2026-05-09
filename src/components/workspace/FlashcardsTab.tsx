@@ -16,9 +16,13 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  Brain
+  Brain,
+  Sparkles,
+  Save
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { gerarFlashcardsIA } from '@/services/iaService'
+import { useToast } from '@/components/shared/Toast'
 
 interface Flashcard {
   id: string
@@ -33,16 +37,21 @@ interface FlashcardsTabProps {
   materiaId: string
   workspaceId: string
   mainColor: string
+  materiaNome?: string
 }
 
-export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: FlashcardsTabProps) {
+export default function FlashcardsTab({ materiaId, workspaceId, mainColor, materiaNome }: FlashcardsTabProps) {
+  const toast = useToast()
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [loading, setLoading] = useState(true)
   const [isStudying, setIsStudying] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showIAModal, setShowIAModal] = useState(false)
   const [newCard, setNewCard] = useState({ frente: '', verso: '', deck: 'Geral' })
+  const [iaContent, setIaContent] = useState('')
+  const [iaLoading, setIaLoading] = useState(false)
 
   useEffect(() => {
     fetchFlashcards()
@@ -86,6 +95,41 @@ export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: Fla
       setShowAddModal(false)
     } catch (error) {
       console.error('Erro ao adicionar flashcard:', error)
+    }
+  }
+
+  async function gerarIA() {
+    if (!iaContent) return toast('Insira o conteúdo para gerar flashcards.', 'error')
+    setIaLoading(true)
+    try {
+      toast('IA analisando conteúdo...', 'info')
+      const result = await gerarFlashcardsIA(iaContent, materiaNome || 'Geral', 10)
+      const cards = (result as any).flashcards || []
+      
+      if (cards.length === 0) throw new Error('Nenhum flashcard gerado')
+
+      const user = (await supabase.auth.getUser()).data.user
+      const insertData = cards.map((fc: any) => ({
+        user_id: user?.id,
+        materia_id: materiaId,
+        frente: fc.frente,
+        verso: fc.verso,
+        deck: materiaNome || 'Geral',
+        tags: fc.tags || []
+      }))
+
+      const { error } = await supabase.from('flashcards').insert(insertData)
+      if (error) throw error
+
+      toast(`${cards.length} flashcards gerados com sucesso!`, 'success')
+      setShowIAModal(false)
+      setIaContent('')
+      fetchFlashcards()
+    } catch (error) {
+      console.error('Erro IA:', error)
+      toast('Erro ao gerar flashcards com IA.', 'error')
+    } finally {
+      setIaLoading(false)
     }
   }
 
@@ -162,7 +206,7 @@ export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: Fla
         </div>
       ) : (
         <>
-          <header className="flex items-center justify-between">
+          <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Brain size={24} style={{ color: mainColor }} />
@@ -171,26 +215,34 @@ export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: Fla
               <p className="text-sm text-slate-500 mt-1">Domine o conteúdo através da repetição e testes ativos.</p>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button 
+                onClick={() => setShowIAModal(true)}
+                className="flex-1 sm:flex-none p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 hover:bg-violet-500/20 transition-all flex items-center justify-center gap-2"
+                title="Gerar com IA"
+              >
+                <Sparkles size={18} />
+                <span className="text-xs font-bold">IA</span>
+              </button>
               <button 
                 onClick={() => setShowAddModal(true)}
-                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white transition-all"
+                className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-white transition-all flex items-center justify-center"
               >
                 <Plus size={20} />
               </button>
               <button 
                 onClick={startStudy}
                 disabled={flashcards.length === 0}
-                className="px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                className="flex-[2] sm:flex-none px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{ backgroundColor: mainColor }}
               >
-                <Play size={16} fill="currentColor" /> Estudar Agora
+                <Play size={16} fill="currentColor" /> <span className="whitespace-nowrap">Estudar Agora</span>
               </button>
             </div>
           </header>
 
-          <div className="grid grid-cols-12 gap-8 flex-1 overflow-hidden">
-            <div className="col-span-8 flex flex-col gap-6 overflow-hidden">
+          <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-8 overflow-hidden">
+            <div className="order-2 lg:order-1 lg:col-span-8 flex flex-col gap-6 overflow-hidden">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                 <input 
@@ -225,7 +277,7 @@ export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: Fla
               </div>
             </div>
 
-            <div className="col-span-4 space-y-6">
+            <div className="order-1 lg:order-2 lg:col-span-4 space-y-6">
                <div className="glass-card p-6 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/20">
                   <h4 className="font-bold text-white mb-4 flex items-center gap-2 text-sm">
                      <TrendingUp size={16} className="text-amber-400" />
@@ -265,6 +317,68 @@ export default function FlashcardsTab({ materiaId, workspaceId, mainColor }: Fla
           </div>
         </>
       )}
+
+      {/* IA Modal */}
+      <AnimatePresence>
+        {showIAModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+             <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+               onClick={() => setShowIAModal(false)}
+             />
+             <motion.div 
+               initial={{ scale: 0.9, opacity: 0 }}
+               animate={{ scale: 1, opacity: 1 }}
+               exit={{ scale: 0.9, opacity: 0 }}
+               className="bg-[#0d1221] border border-white/10 rounded-[2.5rem] p-8 w-full max-w-lg relative z-10 shadow-2xl"
+             >
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 rounded-2xl bg-violet-500/10 text-violet-400">
+                    <Brain size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-white">Flashcards Inteligentes</h4>
+                    <p className="text-xs text-slate-500">Gere cards automaticamente a partir de textos.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                   <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Conteúdo para Estudo</label>
+                      <textarea 
+                        value={iaContent}
+                        onChange={(e) => setIaContent(e.target.value)}
+                        placeholder="Cole aqui o resumo da aula ou texto para transformar em flashcards..."
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-white/20 h-48 resize-none"
+                      />
+                   </div>
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                   <button onClick={() => setShowIAModal(false)} className="px-6 py-3 rounded-2xl bg-white/5 font-bold text-slate-400">Cancelar</button>
+                   <button 
+                     onClick={gerarIA} 
+                     disabled={iaLoading}
+                     className="flex-1 py-3 rounded-2xl font-bold text-white shadow-xl flex items-center justify-center gap-2 disabled:opacity-50" 
+                     style={{ backgroundColor: '#8b5cf6' }}
+                   >
+                      {iaLoading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Sparkles size={16} />
+                          Gerar 10 Cards
+                        </>
+                      )}
+                   </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Adição (Simplificado) */}
       <AnimatePresence>

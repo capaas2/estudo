@@ -142,22 +142,22 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* Header */}
-          <div className="page-header">
+          <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 lg:p-8">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-              <p className="text-slate-500 text-sm mt-0.5">Visão geral do seu desempenho acadêmico</p>
+              <h2 className="text-xl lg:text-2xl font-bold tracking-tight">Dashboard</h2>
+              <p className="text-slate-500 text-xs lg:text-sm mt-0.5">Visão geral do seu desempenho acadêmico</p>
             </div>
             <button
               onClick={gerarInsights}
               disabled={loadingIA || totalSims === 0}
-              className="btn-premium disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-premium disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
             >
               <Brain size={16} />
               {loadingIA ? 'Analisando...' : 'Insights IA'}
             </button>
           </div>
 
-          <div className="page-body space-y-8">
+          <div className="page-body px-4 lg:px-8 space-y-8">
             {/* Stats Grid */}
             <motion.div
               variants={container} initial="hidden" animate="show"
@@ -180,7 +180,7 @@ export default function DashboardPage() {
             </motion.div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { href: '/simulados/criar', icon: Sparkles, label: 'Novo Simulado', color: 'text-cyan-400' },
                 { href: '/revisoes', icon: RotateCcw, label: `Revisões (${reviewCount})`, color: 'text-amber-400' },

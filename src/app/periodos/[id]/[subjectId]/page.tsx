@@ -41,14 +41,17 @@ import FilesTab from '@/components/workspace/FilesTab'
 import QuestionsTab from '@/components/workspace/QuestionsTab'
 import AnalyticsTab from '@/components/workspace/AnalyticsTab'
 import IACopilotTab from '@/components/workspace/IACopilotTab'
+import TutoriaTab from '@/components/workspace/TutoriaTab'
+import JournalClubTab from '@/components/workspace/JournalClubTab'
 
-type TabType = 'visao-geral' | 'notas' | 'tarefas' | 'calendario' | 'revisoes' | 'flashcards' | 'arquivos' | 'questoes' | 'analytics' | 'ia'
+type TabType = 'visao-geral' | 'notas' | 'tarefas' | 'calendario' | 'revisoes' | 'flashcards' | 'arquivos' | 'questoes' | 'analytics' | 'ia' | 'tutoria' | 'journal'
 
 export default function SubjectWorkspace() {
   const params = useParams()
   const router = useRouter()
   const addToast = useToast()
   const [activeTab, setActiveTab] = useState<TabType>('visao-geral')
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [loading, setLoading] = useState(true)
   const [workspace, setWorkspace] = useState<any>(null)
   const [materia, setMateria] = useState<any>(null)
@@ -128,6 +131,8 @@ export default function SubjectWorkspace() {
     { id: 'questoes', label: 'Questões', icon: HelpCircle },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'ia', label: 'IA Copilot', icon: Sparkles },
+    { id: 'tutoria', label: 'Tutoria IA', icon: Zap },
+    { id: 'journal', label: 'Clube Revista', icon: BookOpen },
   ]
 
   if (loading) {
@@ -146,9 +151,25 @@ export default function SubjectWorkspace() {
   const mainColor = workspace?.cor_override || materia?.cor || '#6366f1'
 
   return (
-    <div className="flex h-screen bg-[#0a0e1a] text-slate-200 overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#0a0e1a] text-slate-200 overflow-hidden font-sans relative">
+      {/* OVERLAY MOBILE */}
+      <AnimatePresence>
+        {showMobileSidebar && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowMobileSidebar(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* SIDEBAR INTERNA */}
-      <aside className="w-64 border-r border-white/[0.06] bg-[#0d1221] flex flex-col z-20">
+      <aside className={`
+        fixed inset-y-0 left-0 w-72 lg:relative lg:w-64 border-r border-white/[0.06] bg-[#0d1221] flex flex-col z-50 transition-transform duration-300 lg:translate-x-0
+        ${showMobileSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
         <div className="p-6">
           <Link 
             href={`/periodos/${params.id}`}
@@ -175,7 +196,10 @@ export default function SubjectWorkspace() {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
+                onClick={() => {
+                  setActiveTab(tab.id as TabType)
+                  setShowMobileSidebar(false)
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all relative group ${
                   activeTab === tab.id 
                     ? 'text-white bg-white/[0.05]' 
@@ -216,8 +240,16 @@ export default function SubjectWorkspace() {
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
+        {/* BOTÃO HAMBÚRGUER MOBILE */}
+        <button 
+          onClick={() => setShowMobileSidebar(true)}
+          className="lg:hidden fixed top-4 left-4 z-30 p-2.5 bg-[#0d1221] border border-white/10 rounded-xl text-white shadow-xl"
+        >
+          <MoreVertical size={20} />
+        </button>
+
         {/* HEADER DA MATÉRIA */}
-        <header className="h-64 relative flex-shrink-0 group">
+        <header className="h-48 lg:h-64 relative flex-shrink-0 group">
           {/* Capa */}
           <div className="absolute inset-0 bg-slate-900 overflow-hidden">
             {workspace?.capa_url ? (
@@ -233,7 +265,7 @@ export default function SubjectWorkspace() {
             <div className="flex items-end gap-6">
               <div className="relative">
                 <div 
-                  className="w-24 h-24 rounded-2xl flex items-center justify-center text-white text-4xl shadow-2xl border-4 border-[#0a0e1a]"
+                  className="w-16 h-16 lg:w-24 lg:h-24 rounded-2xl flex items-center justify-center text-white text-2xl lg:text-4xl shadow-2xl border-4 border-[#0a0e1a]"
                   style={{ backgroundColor: mainColor }}
                 >
                   {materia?.nome?.charAt(0)}
@@ -243,19 +275,19 @@ export default function SubjectWorkspace() {
                 </button>
               </div>
               
-              <div className="pb-2">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-4xl font-black text-white tracking-tight">{materia?.nome}</h1>
+              <div className="pb-1 lg:pb-2">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 mb-2">
+                  <h1 className="text-xl lg:text-4xl font-black text-white tracking-tight leading-tight">{materia?.nome}</h1>
                   <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                     {workspace?.status || 'Em andamento'}
                   </span>
                 </div>
-                <div className="flex items-center gap-6 text-sm text-slate-400">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs lg:text-sm text-slate-400">
+                  <div className="flex items-center gap-2 whitespace-nowrap">
                     <User size={14} className="text-slate-500" />
                     <span>Prof. {workspace?.professor || 'Não definido'}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 whitespace-nowrap">
                     <Clock size={14} className="text-slate-500" />
                     <span>{workspace?.carga_horaria || 0}h Carga Horária</span>
                   </div>
@@ -270,7 +302,7 @@ export default function SubjectWorkspace() {
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-4 pb-2">
+            <div className="hidden sm:flex flex-col items-end gap-4 pb-2">
               <div className="flex items-center gap-3 relative">
                 <button 
                   onClick={() => setActiveTab('ia')}
@@ -376,8 +408,35 @@ export default function SubjectWorkspace() {
           </div>
         </header>
 
+        {/* NAVEGAÇÃO DE TABS */}
+        <div className="px-4 lg:px-8 bg-[#0a0e1a]/80 backdrop-blur-md border-b border-white/[0.06] sticky top-0 z-20 overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex items-center gap-4 lg:gap-8 min-w-max">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`py-4 px-1 text-[10px] lg:text-sm font-bold uppercase tracking-widest transition-all relative whitespace-nowrap ${
+                  activeTab === tab.id ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <tab.icon size={14} className="lg:hidden" />
+                  {tab.label}
+                </div>
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="activeTabSubject"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+                    style={{ backgroundColor: mainColor }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ÁREA DE CONTEÚDO (ABAS) */}
-        <section className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+        <section className="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -393,6 +452,8 @@ export default function SubjectWorkspace() {
                   workspace={workspace}
                   workspaceId={workspace?.id} 
                   mainColor={mainColor} 
+                  onNavigate={setActiveTab}
+                  onEdit={() => setIsEditModalOpen(true)}
                 />
               )}
 
@@ -433,6 +494,7 @@ export default function SubjectWorkspace() {
                   materiaId={workspace?.materia_id} 
                   workspaceId={workspace?.id} 
                   mainColor={mainColor} 
+                  materiaNome={materia?.nome}
                 />
               )}
 
@@ -462,6 +524,22 @@ export default function SubjectWorkspace() {
 
               {activeTab === 'ia' && (
                 <IACopilotTab 
+                  materiaId={workspace?.materia_id} 
+                  workspaceId={workspace?.id} 
+                  mainColor={mainColor} 
+                />
+              )}
+
+              {activeTab === 'tutoria' && (
+                <TutoriaTab 
+                  materiaId={workspace?.materia_id} 
+                  workspaceId={workspace?.id} 
+                  mainColor={mainColor} 
+                />
+              )}
+
+              {activeTab === 'journal' && (
+                <JournalClubTab 
                   materiaId={workspace?.materia_id} 
                   workspaceId={workspace?.id} 
                   mainColor={mainColor} 

@@ -232,35 +232,35 @@ export default function PeriodoIndividual({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <div className="page-header border-b border-white/[0.06] bg-[#0a0e1a]/80 backdrop-blur-xl sticky top-0 z-40 p-8 flex items-center justify-between">
+      <div className="page-header border-b border-white/[0.06] bg-[#0a0e1a]/80 backdrop-blur-xl sticky top-0 z-40 p-4 lg:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <Link href="/periodos" className="p-2 bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] rounded-xl text-slate-400 hover:text-slate-200 transition-all">
             <ChevronLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
+            <h1 className="text-xl lg:text-2xl font-bold text-slate-100 flex items-center gap-3">
               {periodo.nome}
             </h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-xs lg:text-sm text-slate-400 mt-1">
               Visão geral do {periodo.numero}º período
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
             <Clock size={14} className="text-cyan-400" />
-            <span className="text-xs font-medium text-slate-300">
+            <span className="text-[10px] sm:text-xs font-medium text-slate-300">
               {periodo.status === 'em_andamento' ? 'Em andamento' : periodo.status === 'concluido' ? 'Concluído' : 'Não iniciado'}
             </span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
             <Target size={14} />
-            <span className="text-xs font-bold">{periodo.progresso}% Concluído</span>
+            <span className="text-[10px] sm:text-xs font-bold">{periodo.progresso}% Concluído</span>
           </div>
         </div>
       </div>
 
-      <div className="p-8 max-w-7xl mx-auto w-full space-y-8">
+      <div className="p-4 lg:p-8 max-w-7xl mx-auto w-full space-y-8">
         
         {/* ===================== MATÉRIAS ===================== */}
         <section>

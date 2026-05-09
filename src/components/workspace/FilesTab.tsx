@@ -125,34 +125,34 @@ export default function FilesTab({ materiaId, workspaceId, mainColor }: FilesTab
 
   return (
     <div className="h-full flex flex-col gap-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Folder size={24} style={{ color: mainColor }} />
             Repositório de Arquivos
           </h3>
-          <p className="text-sm text-slate-500 mt-1">Organize PDFs, imagens e documentos da disciplina.</p>
+          <p className="text-sm text-slate-500 mt-1">Organize PDFs e documentos da disciplina.</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 mr-2">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto justify-center sm:justify-start">
              <button 
                onClick={() => setViewMode('grid')}
-               className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+               className={`flex-1 sm:flex-none p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
              >
                 <Grid size={16} />
              </button>
              <button 
                onClick={() => setViewMode('list')}
-               className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+               className={`flex-1 sm:flex-none p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'}`}
              >
                 <ListIcon size={16} />
              </button>
           </div>
           
-          <label className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-slate-200 transition-all shadow-lg active:scale-95">
+          <label className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-sm cursor-pointer hover:bg-slate-200 transition-all shadow-lg active:scale-95">
              <Upload size={16} />
-             {uploading ? 'Enviando...' : 'Fazer Upload'}
+             <span className="truncate">{uploading ? 'Enviando...' : 'Fazer Upload'}</span>
              <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
           </label>
         </div>
@@ -170,7 +170,7 @@ export default function FilesTab({ materiaId, workspaceId, mainColor }: FilesTab
 
         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
           {loading ? (
-             <div className="grid grid-cols-4 gap-4">
+             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map(i => <div key={i} className="h-40 rounded-3xl bg-white/[0.02] animate-pulse" />)}
              </div>
           ) : files.length === 0 ? (
@@ -181,7 +181,7 @@ export default function FilesTab({ materiaId, workspaceId, mainColor }: FilesTab
                 <p className="italic">Nenhum arquivo encontrado.</p>
              </div>
           ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {files.map(file => (
                 <motion.div 
                   key={file.id}
@@ -242,17 +242,17 @@ export default function FilesTab({ materiaId, workspaceId, mainColor }: FilesTab
         </div>
       </div>
 
-      <footer className="glass-card p-5 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 border-blue-500/10 flex items-center justify-between">
+      <footer className="glass-card p-4 lg:p-5 bg-gradient-to-r from-blue-500/5 to-cyan-500/5 border-blue-500/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
          <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-400">
                <Folder size={18} />
             </div>
             <div>
                <h4 className="text-xs font-bold text-white">Espaço Utilizado</h4>
-               <p className="text-[10px] text-slate-500">Você está usando 124 MB de 2 GB (6%)</p>
+               <p className="text-[10px] text-slate-500">Usando 124 MB de 2 GB (6%)</p>
             </div>
          </div>
-         <div className="w-48 h-2 bg-white/5 rounded-full overflow-hidden border border-white/[0.05]">
+         <div className="w-full sm:w-48 h-2 bg-white/5 rounded-full overflow-hidden border border-white/[0.05]">
             <div className="h-full bg-blue-500 w-[6%]" />
          </div>
       </footer>

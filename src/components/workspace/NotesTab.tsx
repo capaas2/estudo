@@ -185,9 +185,12 @@ export default function NotesTab({ materiaId, workspaceId, mainColor }: NotesTab
   )
 
   return (
-    <div className="flex h-full gap-6 overflow-hidden">
+    <div className="flex h-full gap-0 lg:gap-6 overflow-hidden relative">
       {/* Listagem de Notas */}
-      <aside className="w-80 flex flex-col gap-4">
+      <aside className={`
+        ${activeNote && 'hidden lg:flex'} 
+        w-full lg:w-80 flex flex-col gap-4
+      `}>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-bold text-white">Minhas Notas</h3>
           <button 
@@ -261,17 +264,26 @@ export default function NotesTab({ materiaId, workspaceId, mainColor }: NotesTab
       </aside>
 
       {/* Editor Tiptap */}
-      <main className="flex-1 glass-card flex flex-col overflow-hidden">
+      <main className={`
+        ${!activeNote && 'hidden lg:flex'}
+        flex-1 lg:glass-card flex flex-col overflow-hidden bg-[#0a0e1a] lg:bg-transparent
+      `}>
         {activeNote ? (
           <>
             {/* Toolbar do Editor */}
-            <header className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01]">
-              <div className="flex items-center gap-2">
+            <header className="px-4 lg:px-6 py-3 lg:py-4 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between bg-white/[0.01] gap-4">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setActiveNote(null)}
+                  className="lg:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400"
+                >
+                  <ChevronRight size={20} className="rotate-180" />
+                </button>
                 <input 
                   type="text" 
                   value={activeNote.titulo}
                   onChange={(e) => setActiveNote({ ...activeNote, titulo: e.target.value })}
-                  className="bg-transparent text-xl font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 transition-all pb-1 min-w-[300px]"
+                  className="bg-transparent text-lg lg:text-xl font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 transition-all pb-1 flex-1 min-w-0"
                 />
               </div>
 
@@ -320,7 +332,7 @@ export default function NotesTab({ materiaId, workspaceId, mainColor }: NotesTab
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-12 editor-container custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 lg:p-12 editor-container custom-scrollbar">
               <EditorContent editor={editor} />
             </div>
           </>

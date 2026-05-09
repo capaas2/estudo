@@ -130,33 +130,33 @@ export default function TasksTab({ materiaId, workspaceId, mainColor }: TasksTab
 
   return (
     <div className="h-full flex flex-col gap-6">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-xl font-bold text-white">Board de Tarefas</h3>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 w-full sm:w-auto">
+          <h3 className="text-lg lg:text-xl font-bold text-white whitespace-nowrap">Board de Tarefas</h3>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 ml-auto sm:ml-0">
             <Filter size={14} className="text-slate-500" />
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Filtros</span>
+            <span className="text-[10px] lg:text-xs font-bold text-slate-400 uppercase tracking-tighter">Filtros</span>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
             <input 
               type="text" 
               placeholder="Buscar tarefas..." 
-              className="bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-white/20 transition-all w-48"
+              className="bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-white/20 transition-all w-full sm:w-48"
             />
           </div>
-          <button className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all">
+          <button className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all shrink-0">
             <MoreHorizontal size={18} />
           </button>
         </div>
       </header>
 
-      <div className="flex-1 grid grid-cols-3 gap-6 overflow-hidden">
+      <div className="flex-1 flex lg:grid lg:grid-cols-3 gap-6 overflow-x-auto lg:overflow-hidden pb-4 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 custom-scrollbar">
         {columns.map((column) => (
-          <div key={column.id} className="flex flex-col bg-white/[0.01] rounded-2xl border border-white/[0.04] overflow-hidden">
+          <div key={column.id} className="flex flex-col min-w-[280px] sm:min-w-[320px] lg:min-w-0 bg-white/[0.01] rounded-2xl border border-white/[0.04] overflow-hidden">
             <div className="p-4 border-b border-white/[0.04] flex items-center justify-between bg-white/[0.02]">
               <div className="flex items-center gap-3">
                 <column.icon size={16} className={column.color} />
