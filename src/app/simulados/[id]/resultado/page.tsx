@@ -149,11 +149,27 @@ export default function ResultadoSimuladoPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                   <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Sua Resposta</p>
-                    <p className="text-slate-200">{r.resposta_objetiva || 'Não respondida'}</p>
+                    <div className="text-slate-200 text-sm">
+                      {r.questao?.tipo === 'objetiva' ? (
+                        r.resposta_objetiva ? (() => {
+                          const alt = r.questao?.alternativas?.find((a: any) => a.letra?.toLowerCase() === r.resposta_objetiva?.toLowerCase());
+                          return alt ? <p><span className="font-bold mr-1 text-slate-400">{alt.letra})</span>{alt.texto}</p> : <p>{r.resposta_objetiva}</p>;
+                        })() : <p className="text-slate-500 italic">Não respondida</p>
+                      ) : (
+                        <p>{r.resposta_discursiva || <span className="text-slate-500 italic">Não respondida</span>}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
                     <p className="text-[10px] font-bold text-emerald-500 uppercase mb-2">Gabarito</p>
-                    <p className="text-emerald-200 font-bold">{r.questao?.gabarito}</p>
+                    <div className="text-emerald-200 text-sm">
+                      {r.questao?.tipo === 'objetiva' ? (() => {
+                        const alt = r.questao?.alternativas?.find((a: any) => a.letra?.toLowerCase() === r.questao?.gabarito?.toLowerCase());
+                        return alt ? <p><span className="font-bold mr-1 text-emerald-400">{alt.letra})</span>{alt.texto}</p> : <p className="font-bold">{r.questao?.gabarito}</p>;
+                      })() : (
+                        <p>{r.questao?.gabarito}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
