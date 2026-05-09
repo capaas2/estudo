@@ -20,6 +20,7 @@ import {
   BookOpen,
   Plus,
   MoreHorizontal,
+  MoreVertical,
   Zap,
   Target,
   Settings2,
