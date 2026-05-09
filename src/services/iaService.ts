@@ -232,13 +232,13 @@ Matérias estudadas: ${dados.materias.join(', ')}
 Últimos resultados: ${dados.ultimosResultados.map(r => `${r.materia}: ${r.nota}%`).join(', ')}
 Erros frequentes: ${dados.errosFrequentes.join(', ')}
 
-Responda em JSON:
+Responda em JSON preenchendo com dados REAIS baseados na análise (não repita o texto de exemplo):
 {
-  "pontos_fracos": ["até 5"],
-  "tendencia": "texto",
-  "velocidade_vs_precisao": "análise",
-  "prioridades": ["até 5"],
-  "dica_do_dia": "dica"
+  "pontos_fracos": ["lista com até 5 matérias ou tópicos fracos reais"],
+  "tendencia": "texto curto analisando a tendência (ex: melhorando, estagnado)",
+  "velocidade_vs_precisao": "breve análise da relação velocidade e precisão",
+  "prioridades": ["lista com até 5 tópicos urgentes para revisar"],
+  "dica_do_dia": "uma dica prática e acionável baseada nos erros"
 }`
 
   const resp = await callOpenRouterIA([
