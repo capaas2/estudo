@@ -290,7 +290,7 @@ export default function DashboardPage() {
                         </ul>
                       </div>
                     )}
-                    {insights.tendencia && (
+                    {!!insights.tendencia && (
                       <div>
                         <p className="text-xs font-semibold text-cyan-400 mb-1">📊 Tendência</p>
                         <p className="text-xs text-slate-400">{insights.tendencia as string}</p>
@@ -310,7 +310,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                 </div>
-                {insights.dica_do_dia && (
+                {!!insights.dica_do_dia && (
                   <div className="mt-4 p-3 bg-emerald-500/8 rounded-xl border border-emerald-500/10">
                     <span className="text-xs font-semibold text-emerald-400">💡 Dica do Dia: </span>
                     <span className="text-xs text-slate-400">{insights.dica_do_dia as string}</span>
