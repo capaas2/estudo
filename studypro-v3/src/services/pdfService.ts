@@ -1,13 +1,10 @@
-'use client'
-
-import * as pdfjsLib from 'pdfjs-dist'
-
-// Configurar worker via CDN
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
-}
-
 export async function extrairTextoPDF(file: File): Promise<string> {
+  // Import dinâmico para evitar erro de DOMMatrix no build (SSR)
+  const pdfjsLib = await import('pdfjs-dist')
+  
+  // Configurar worker via CDN
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs'
+
   try {
     const arrayBuffer = await file.arrayBuffer()
     const pdf = await pdfjsLib.getDocument({
