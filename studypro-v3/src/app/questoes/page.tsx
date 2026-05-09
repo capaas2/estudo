@@ -11,9 +11,18 @@ import { extrairTextoPDF } from '@/services/pdfService'
 import { uploadImagemQuestao } from '@/services/storageService'
 
 interface QuestaoData {
-  id: string; tipo: string; enunciado: string; materia_id: string; subtema_id?: string;
-  dificuldade: string; alternativas?: { letra: string; texto: string }[]; gabarito?: string;
-  peso?: number; tags?: string[]; explicacao?: string; imagem_url?: string;
+  id: string; 
+  tipo: 'objetiva' | 'discursiva'; 
+  enunciado: string; 
+  materia_id: string; 
+  subtema_id?: string;
+  dificuldade: 'facil' | 'medio' | 'dificil'; 
+  alternativas?: { letra: string; texto: string }[]; 
+  gabarito?: string;
+  peso?: number; 
+  tags?: string[]; 
+  explicacao?: string; 
+  imagem_url?: string;
   subitens?: { letra: string; texto: string; gabarito?: string; criterios?: string }[]
 }
 
