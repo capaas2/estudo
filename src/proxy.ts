@@ -31,11 +31,12 @@ export async function proxy(request: NextRequest) {
   }
 
   try {
-    // Valida a sessão no Appwrite
+    // Valida a sessão no Appwrite (que agora usa setJWT internamente)
     const { account } = createSessionClient(sessionCookie.value)
     await account.get()
     return NextResponse.next()
-  } catch {
+  } catch (error) {
+    console.error('Erro na validação do proxy Appwrite:', error)
     // Sessão inválida ou expirada → limpa cookie e redireciona
     const loginUrl = new URL('/login', request.url)
     const response = NextResponse.redirect(loginUrl)

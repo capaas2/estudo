@@ -4,6 +4,7 @@ import { useState, Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { account } from '@/lib/appwrite/config'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { GraduationCap, Mail, Lock, LogIn, UserPlus, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 
@@ -25,6 +26,7 @@ function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/'
+  const queryClient = useQueryClient()
 
   const { data: user } = useCurrentUser()
 
@@ -75,6 +77,9 @@ function LoginContent() {
         body: JSON.stringify({ session: sessionToken }),
       })
 
+      // Invalida a query do usuário para limpar o cache do React Query e carregar os dados corretos
+      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+
       router.push(redirectTo)
     } catch (err: any) {
       console.error('Erro ao fazer login:', err)
@@ -118,6 +123,9 @@ function LoginContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session: sessionToken }),
       })
+
+      // Invalida a query do usuário para limpar o cache do React Query e carregar os dados corretos
+      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
 
       router.push('/onboarding')
     } catch (err: any) {
