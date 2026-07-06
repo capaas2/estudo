@@ -1,279 +1,392 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { useToast } from '@/components/shared/Toast'
-import AppShell from '@/components/layout/AppShell'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { getSimulado, updateSimulado, createResposta } from '@/services/database/simulados'
+import { getQuestao } from '@/services/database/questoes'
+import { createReview } from '@/services/database/reviews'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Clock, Send, AlertCircle, Info } from 'lucide-react'
-
-interface Question {
-  id: string;
-  tipo: 'objetiva' | 'discursiva';
-  enunciado: string;
-  alternativas?: string[];
-  gabarito: string;
-  subitens?: { label: string; enunciado: string }[];
-}
+import {
+  Clock, ChevronLeft, ChevronRight, Flag, CheckCircle,
+  AlertTriangle, BookOpen, Sparkles, Eye,
+} from 'lucide-react'
+import type { Questao, Simulado } from '@/types/database'
 
 export default function ExecutarSimuladoPage() {
-  const { id } = useParams()
+  const params = useParams()
   const router = useRouter()
-  const toast = useToast()
-  
-  const [simulado, setSimulado] = useState<any>(null)
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: user } = useCurrentUser()
+  const simuladoId = params.id as string
+
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, any>>({})
-  const [startTime] = useState(Date.now())
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [elapsedTime, setElapsedTime] = useState(0)
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({})
+  const [questionStart, setQuestionStart] = useState(Date.now())
+  const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({})
+  const [confirmedAnswers, setConfirmedAnswers] = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    async function loadSimulado() {
-      const { data: s, error: sError } = await supabase
-        .from('simulados')
-        .select('*, materia:materias(nome)')
-        .eq('id', id)
-        .single()
-      
-      if (sError || !s) {
-        toast('Simulado não encontrado', 'error')
-        return router.push('/simulados')
+  const { data: simulado, isLoading: simLoading } = useQuery({
+    queryKey: ['simulado', simuladoId],
+    queryFn: () => getSimulado(simuladoId),
+    enabled: !!simuladoId,
+  })
+
+  const questaoIds = simulado?.questao_ids || []
+
+  const { data: questoes = [], isLoading: qLoading } = useQuery({
+    queryKey: ['simulado-questoes', questaoIds],
+    queryFn: async () => {
+      const results: Questao[] = []
+      for (const id of questaoIds) {
+        try {
+          const q = await getQuestao(id)
+          results.push(q)
+        } catch { /* skip missing */ }
       }
+      return results
+    },
+    enabled: questaoIds.length > 0,
+  })
 
-      const { data: q, error: qError } = await supabase
-        .from('questoes')
-        .select('*')
-        .in('id', s.questao_ids)
-      
-      if (qError) {
-        toast('Erro ao carregar questões', 'error')
-      } else {
-        // Ordenar conforme questao_ids
-        const sorted = s.questao_ids.map((qid: string) => q.find(item => item.id === qid)).filter(Boolean)
-        setQuestions(sorted)
-      }
-      
-      setSimulado(s)
-      setLoading(false)
-    }
-    loadSimulado()
-  }, [id, router, toast])
-
+  // Timer
   useEffect(() => {
-    const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000))
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [startTime])
+    if (!simulado || simulado.modo !== 'cronometrado') return
+    const interval = setInterval(() => setElapsedTime(e => e + 1), 1000)
+    return () => clearInterval(interval)
+  }, [simulado])
 
-  const formatTime = (seconds: number) => {
+  // Track time per question
+  useEffect(() => {
+    setQuestionStart(Date.now())
+  }, [currentIndex])
+
+  function formatTime(seconds: number): string {
     const h = Math.floor(seconds / 3600)
     const m = Math.floor((seconds % 3600) / 60)
     const s = seconds % 60
-    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    return h > 0
+      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      : `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  const currentQuestion = questions[currentIndex]
-  const progress = ((currentIndex + 1) / questions.length) * 100
+  function saveQuestionTime() {
+    const timeSpent = Math.round((Date.now() - questionStart) / 1000)
+    const currentQ = questoes[currentIndex]
+    if (currentQ) {
+      setQuestionTimes(prev => ({
+        ...prev,
+        [currentQ.$id]: (prev[currentQ.$id] || 0) + timeSpent,
+      }))
+    }
+  }
+
+  function goToNext() {
+    saveQuestionTime()
+    if (currentIndex < questoes.length - 1) setCurrentIndex(i => i + 1)
+  }
+
+  function goToPrev() {
+    saveQuestionTime()
+    if (currentIndex > 0) setCurrentIndex(i => i - 1)
+  }
+
+  function confirmAnswer(questaoId: string) {
+    setConfirmedAnswers(prev => ({ ...prev, [questaoId]: true }))
+  }
 
   async function handleFinish() {
-    if (!confirm('Deseja finalizar o simulado? Todas as respostas serão enviadas.')) return
-    
+    if (!user || !simulado) return
+    saveQuestionTime()
     setSubmitting(true)
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Não autenticado')
+      let correctCount = 0
 
-      // Salvar cada resposta
-      const respostasToInsert = questions.map((q, index) => ({
-        simulado_id: id,
-        questao_id: q.id,
-        user_id: user.id,
-        ordem: index,
-        resposta_objetiva: q.tipo === 'objetiva' ? answers[q.id] : null,
-        respostas_discursivas: q.tipo === 'discursiva' ? (answers[q.id] || []) : null,
-        tempo_gasto: 0, // Pode ser implementado por questão se desejar
-      }))
+      for (let i = 0; i < questoes.length; i++) {
+        const q = questoes[i]
+        const answer = answers[q.$id] || ''
+        const isCorrect = q.tipo === 'objetiva' && answer === q.gabarito
 
-      const { error: rError } = await supabase.from('respostas_simulado').insert(respostasToInsert)
-      if (rError) throw rError
+        if (isCorrect) correctCount++
 
-      // Atualizar simulado
-      await supabase.from('simulados').update({
+        await createResposta(user.$id, {
+          simulado_id: simuladoId,
+          questao_id: q.$id,
+          ordem: i,
+          resposta_objetiva: q.tipo === 'objetiva' ? answer : undefined,
+          respostas_discursivas: q.tipo === 'discursiva' && answer ? [answer] : undefined,
+          tempo_gasto: questionTimes[q.$id] || 0,
+          esta_correta: isCorrect,
+          nota: isCorrect ? 1 : 0,
+          nota_maxima: 1,
+        })
+
+        // Auto-create review for wrong answers
+        if (!isCorrect && answer) {
+          await createReview(user.$id, {
+            titulo: `Erro: ${q.enunciado.slice(0, 80)}...`,
+            materia_id: q.materia_id,
+            questao_id: q.$id,
+            tipo: 'erro_simulado',
+            data_revisao: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+            origem: `Simulado: ${simulado.titulo}`,
+          })
+        }
+      }
+
+      await updateSimulado(simuladoId, {
         status: 'finalizado',
         finalizado_em: new Date().toISOString(),
-        tempo_total: elapsedTime
-      }).eq('id', id)
+        tempo_total: elapsedTime,
+        nota: correctCount,
+        nota_maxima: questoes.length,
+      })
 
-      toast('Simulado finalizado!', 'success')
-      router.push(`/simulados/${id}/resultado`)
-    } catch (err: any) {
-      toast(err.message || 'Erro ao finalizar simulado', 'error')
+      router.push(`/simulados/${simuladoId}/resultado`)
+    } catch (err) {
+      console.error('Erro ao finalizar simulado:', err)
     } finally {
       setSubmitting(false)
     }
   }
 
-  if (loading) return <AppShell><div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div></AppShell>
+  if (simLoading || qLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <PageLoading />
+      </div>
+    )
+  }
+
+  if (!simulado || questoes.length === 0) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <div className="glass-card p-8 text-center">
+          <AlertTriangle size={32} className="text-amber-400 mx-auto mb-3" />
+          <p className="text-slate-300">Simulado não encontrado ou sem questões</p>
+          <button onClick={() => router.push('/simulados')} className="btn-premium mt-4 text-xs">
+            Voltar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const currentQ = questoes[currentIndex]
+  const isTutor = simulado.modo === 'tutor'
+  const isConfirmed = confirmedAnswers[currentQ.$id]
+  const isCorrect = currentQ.tipo === 'objetiva' && answers[currentQ.$id] === currentQ.gabarito
+  const answeredCount = Object.keys(answers).length
 
   return (
-    <AppShell showSidebar={false}>
-      <div className="flex flex-col h-screen bg-slate-950 overflow-hidden">
-        {/* Header */}
-        <header className="h-16 border-b border-white/5 bg-slate-900/50 backdrop-blur-md px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="text-sm">
-              <p className="text-slate-500 font-medium">Simulado</p>
-              <h1 className="text-slate-200 font-bold truncate max-w-[200px]">{simulado?.titulo}</h1>
-            </div>
-            <div className="h-8 w-px bg-white/10 hidden sm:block" />
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-white/[0.03] rounded-full border border-white/5">
-              <Clock size={14} className="text-cyan-400" />
-              <span className="text-sm font-mono text-cyan-400 tabular-nums">{formatTime(elapsedTime)}</span>
-            </div>
-          </div>
-
+    <div className="min-h-screen bg-[var(--bg-primary)]">
+      {/* Top bar */}
+      <div className="sticky top-0 z-40 bg-[var(--bg-secondary)]/80 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 font-medium hidden xs:block">Questão {currentIndex + 1} de {questions.length}</span>
-            <button 
+            <span className="text-sm font-semibold text-slate-200">{simulado.titulo}</span>
+            <span className="badge-sm badge-cyan">{isTutor ? 'Tutor' : 'Cronometrado'}</span>
+          </div>
+          <div className="flex items-center gap-4">
+            {simulado.cronometro_visivel !== false && (
+              <div className="flex items-center gap-1.5 text-sm font-mono text-slate-300">
+                <Clock size={14} className="text-cyan-400" />
+                {formatTime(elapsedTime)}
+              </div>
+            )}
+            <span className="text-xs text-slate-500">
+              {answeredCount}/{questoes.length} respondidas
+            </span>
+            <button
               onClick={handleFinish}
               disabled={submitting}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+              className="btn-premium text-xs"
             >
-              {submitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={16} />}
-              Finalizar
+              <Flag size={14} />
+              {submitting ? 'Finalizando...' : 'Finalizar'}
             </button>
           </div>
-        </header>
-
-        {/* Progress Bar */}
-        <div className="h-1 bg-white/5 shrink-0">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
-          />
         </div>
+      </div>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center">
-          <div className="max-w-4xl w-full">
-            <AnimatePresence mode="wait">
-              <motion.div 
-                key={currentIndex}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-8 pb-24"
+      {/* Question navigation pills */}
+      <div className="max-w-4xl mx-auto px-4 py-3">
+        <div className="flex gap-1.5 flex-wrap">
+          {questoes.map((q, i) => {
+            const answered = !!answers[q.$id]
+            const isCurrent = i === currentIndex
+            return (
+              <button
+                key={q.$id}
+                onClick={() => { saveQuestionTime(); setCurrentIndex(i) }}
+                className={`w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-all ${
+                  isCurrent
+                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                    : answered
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-white/[0.04] text-slate-500 border border-white/[0.06] hover:border-white/[0.12]'
+                }`}
               >
-                {/* Question Info */}
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-[10px] font-bold uppercase tracking-wider">Questão {currentIndex + 1}</span>
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-slate-500 text-[10px] font-bold uppercase tracking-wider">{currentQuestion?.tipo}</span>
-                </div>
+                {i + 1}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-                {/* Enunciado */}
-                <div className="text-lg text-slate-200 leading-relaxed font-medium">
-                  {currentQuestion?.enunciado}
-                </div>
-
-                {/* Resposta */}
-                <div className="space-y-4">
-                  {currentQuestion?.tipo === 'objetiva' ? (
-                    <div className="grid gap-3">
-                      {currentQuestion.alternativas?.map((alt, idx) => {
-                        const letter = String.fromCharCode(65 + idx)
-                        const isSelected = answers[currentQuestion.id] === letter
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => setAnswers(prev => ({ ...prev, [currentQuestion.id]: letter }))}
-                            className={`flex items-start gap-4 p-4 rounded-xl border text-left transition-all group ${isSelected ? 'bg-cyan-500/10 border-cyan-500/50 ring-1 ring-cyan-500/50' : 'bg-white/[0.02] border-white/5 hover:border-white/20'}`}
-                          >
-                            <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold transition-colors ${isSelected ? 'bg-cyan-500 text-white' : 'bg-white/5 text-slate-500 group-hover:text-slate-300'}`}>
-                              {letter}
-                            </span>
-                            <span className={`pt-1 text-sm ${isSelected ? 'text-slate-100 font-medium' : 'text-slate-400'}`}>{alt}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {currentQuestion.subitens && currentQuestion.subitens.length > 0 ? (
-                        currentQuestion.subitens.map((sub, idx) => (
-                          <div key={idx} className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-cyan-400">{sub.label}</span>
-                              <span className="text-sm text-slate-300">{sub.enunciado}</span>
-                            </div>
-                            <textarea 
-                              value={answers[currentQuestion.id]?.[idx] || ''}
-                              onChange={e => {
-                                const newAnswers = [...(answers[currentQuestion.id] || Array(currentQuestion.subitens!.length).fill(''))]
-                                newAnswers[idx] = e.target.value
-                                setAnswers(prev => ({ ...prev, [currentQuestion.id]: newAnswers }))
-                              }}
-                              placeholder="Sua resposta..."
-                              className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-4 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 min-h-[100px] transition-all"
-                            />
-                          </div>
-                        ))
-                      ) : (
-                        <textarea 
-                          value={answers[currentQuestion.id]?.[0] || ''}
-                          onChange={e => setAnswers(prev => ({ ...prev, [currentQuestion.id]: [e.target.value] }))}
-                          placeholder="Digite sua resposta completa aqui..."
-                          className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-6 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30 min-h-[250px] transition-all"
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </main>
-
-        {/* Footer Navigation */}
-        <footer className="h-20 border-t border-white/5 bg-slate-900/80 backdrop-blur-xl px-6 flex items-center justify-center shrink-0">
-          <div className="max-w-4xl w-full flex items-center justify-between">
-            <button 
-              disabled={currentIndex === 0}
-              onClick={() => setCurrentIndex(prev => prev - 1)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-slate-500 hover:text-slate-200 disabled:opacity-20 transition-colors"
-            >
-              <ChevronLeft size={20} />
-              <span className="font-bold">Anterior</span>
-            </button>
-
-            <div className="flex gap-1.5 overflow-x-auto px-4 max-w-[200px] xs:max-w-none">
-              {questions.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentIndex(idx)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all shrink-0 ${idx === currentIndex ? 'bg-cyan-500 w-6' : (answers[questions[idx].id] ? 'bg-slate-500' : 'bg-white/10')}`}
-                />
-              ))}
+      {/* Question */}
+      <div className="max-w-4xl mx-auto px-4 pb-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentQ.$id}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="glass-card p-6"
+          >
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-slate-500 font-mono">Questão {currentIndex + 1}/{questoes.length}</span>
+              <span className={`badge-sm ${
+                currentQ.dificuldade === 'facil' ? 'badge-success' :
+                currentQ.dificuldade === 'medio' ? 'badge-warning' : 'badge-danger'
+              }`}>
+                {currentQ.dificuldade === 'facil' ? 'Fácil' : currentQ.dificuldade === 'medio' ? 'Médio' : 'Difícil'}
+              </span>
             </div>
 
-            <button 
-              onClick={() => {
-                if (currentIndex < questions.length - 1) setCurrentIndex(prev => prev + 1)
-                else handleFinish()
-              }}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 transition-all border border-white/10"
-            >
-              <span className="font-bold">{currentIndex === questions.length - 1 ? 'Finalizar' : 'Próxima'}</span>
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        </footer>
+            {/* Enunciado */}
+            <p className="text-slate-200 leading-relaxed mb-6">{currentQ.enunciado}</p>
+
+            {/* Alternatives */}
+            {currentQ.tipo === 'objetiva' && currentQ.alternativas && (
+              <div className="space-y-2 mb-4">
+                {currentQ.alternativas.map(alt => {
+                  const isSelected = answers[currentQ.$id] === alt.letra
+                  const showResult = isTutor && isConfirmed
+                  const isCorrectAlt = alt.letra === currentQ.gabarito
+
+                  return (
+                    <button
+                      key={alt.letra}
+                      onClick={() => {
+                        if (isConfirmed) return
+                        setAnswers(prev => ({ ...prev, [currentQ.$id]: alt.letra }))
+                      }}
+                      disabled={isConfirmed}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all border ${
+                        showResult
+                          ? isCorrectAlt
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : isSelected && !isCorrectAlt
+                              ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                              : 'border-white/[0.06] text-slate-400'
+                          : isSelected
+                            ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                            : 'border-white/[0.06] text-slate-300 hover:border-white/[0.12] hover:bg-white/[0.02]'
+                      }`}
+                    >
+                      <span className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                        showResult && isCorrectAlt
+                          ? 'bg-emerald-500/20 text-emerald-400'
+                          : showResult && isSelected && !isCorrectAlt
+                            ? 'bg-rose-500/20 text-rose-400'
+                            : isSelected
+                              ? 'bg-cyan-500/20 text-cyan-400'
+                              : 'bg-white/[0.04] text-slate-500'
+                      }`}>
+                        {showResult && isCorrectAlt ? <CheckCircle size={14} /> : alt.letra}
+                      </span>
+                      <span className="text-sm">{alt.texto}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Discursiva */}
+            {currentQ.tipo === 'discursiva' && (
+              <textarea
+                value={answers[currentQ.$id] || ''}
+                onChange={e => setAnswers(prev => ({ ...prev, [currentQ.$id]: e.target.value }))}
+                placeholder="Digite sua resposta..."
+                className="form-textarea mb-4"
+                rows={6}
+                disabled={isConfirmed}
+              />
+            )}
+
+            {/* Tutor mode: confirm and see explanation */}
+            {isTutor && !isConfirmed && answers[currentQ.$id] && (
+              <button
+                onClick={() => confirmAnswer(currentQ.$id)}
+                className="btn-premium text-xs mb-4"
+              >
+                <Eye size={14} />
+                Confirmar e Ver Resposta
+              </button>
+            )}
+
+            {isTutor && isConfirmed && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`p-4 rounded-xl border mb-4 ${
+                  isCorrect
+                    ? 'bg-emerald-500/5 border-emerald-500/20'
+                    : 'bg-rose-500/5 border-rose-500/20'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  {isCorrect
+                    ? <CheckCircle size={16} className="text-emerald-400" />
+                    : <AlertTriangle size={16} className="text-rose-400" />
+                  }
+                  <span className={`text-sm font-semibold ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {isCorrect ? 'Correto!' : `Incorreto — Gabarito: ${currentQ.gabarito}`}
+                  </span>
+                </div>
+                {currentQ.explicacao && (
+                  <p className="text-xs text-slate-400 leading-relaxed">{currentQ.explicacao}</p>
+                )}
+              </motion.div>
+            )}
+
+            {/* Navigation */}
+            <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
+              <button
+                onClick={goToPrev}
+                disabled={currentIndex === 0}
+                className="btn-secondary text-xs"
+              >
+                <ChevronLeft size={14} />
+                Anterior
+              </button>
+              {currentIndex < questoes.length - 1 ? (
+                <button onClick={goToNext} className="btn-premium text-xs">
+                  Próxima
+                  <ChevronRight size={14} />
+                </button>
+              ) : (
+                <button
+                  onClick={handleFinish}
+                  disabled={submitting}
+                  className="btn-premium text-xs"
+                >
+                  <Flag size={14} />
+                  {submitting ? 'Finalizando...' : 'Finalizar Simulado'}
+                </button>
+              )}
+            </div>
+          </motion.div>
+        </AnimatePresence>
       </div>
-    </AppShell>
+    </div>
   )
 }

@@ -9,8 +9,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'StudyPro — Plataforma Acadêmica de Medicina',
-  description: 'Sistema operacional acadêmico completo para estudantes de Medicina. Workspace, simulados, IA, revisões espaçadas e muito mais.',
+  title: 'StudyPro v4 — Plataforma Acadêmica de Medicina',
+  description: 'Sistema operacional acadêmico completo para estudantes de Medicina. Workspace unificado, simulados, IA integrada, revisões espaçadas FSRS e muito mais.',
 }
 
 export default function RootLayout({
@@ -20,9 +20,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" className="dark">
-      <head>
-        <script src="https://accounts.google.com/gsi/client" async defer></script>
-      </head>
       <body className={`${inter.variable} font-sans antialiased bg-[#0a0e1a] text-slate-100 min-h-screen`}>
         <Providers>
           {children}

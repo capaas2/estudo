@@ -1,37 +1,43 @@
-import { supabase } from '@/lib/supabase'
+import { storage } from '@/lib/appwrite/config'
+import { STORAGE_BUCKET_ID } from '@/lib/appwrite/collections'
+import { ID } from 'appwrite'
 
-export async function uploadImagemQuestao(file: File): Promise<string | null> {
-  if (!file) return null
-
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
-
-  const { error: uploadError } = await supabase.storage
-    .from('questoes-imagens')
-    .upload(fileName, file)
-
-  if (uploadError) throw uploadError
-
-  const { data } = supabase.storage
-    .from('questoes-imagens')
-    .getPublicUrl(fileName)
-
-  return data.publicUrl
+/**
+ * Upload de arquivo para o Appwrite Storage.
+ */
+export async function uploadFile(file: File): Promise<string> {
+  const result = await storage.createFile(
+    STORAGE_BUCKET_ID,
+    ID.unique(),
+    file
+  )
+  return result.$id
 }
 
-export async function uploadArquivoMateria(file: File, materiaId: string): Promise<string> {
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${materiaId}/${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
+/**
+ * Retorna a URL de preview/download de um arquivo.
+ */
+export function getFileUrl(fileId: string): string {
+  return storage.getFileView(STORAGE_BUCKET_ID, fileId).toString()
+}
 
-  const { error } = await supabase.storage
-    .from('materias-arquivos')
-    .upload(fileName, file)
+/**
+ * Retorna a URL de download de um arquivo.
+ */
+export function getFileDownloadUrl(fileId: string): string {
+  return storage.getFileDownload(STORAGE_BUCKET_ID, fileId).toString()
+}
 
-  if (error) throw error
+/**
+ * Remove um arquivo do storage.
+ */
+export async function deleteFile(fileId: string): Promise<void> {
+  await storage.deleteFile(STORAGE_BUCKET_ID, fileId)
+}
 
-  const { data } = supabase.storage
-    .from('materias-arquivos')
-    .getPublicUrl(fileName)
-
-  return data.publicUrl
+/**
+ * Lista os arquivos do bucket.
+ */
+export async function listFiles() {
+  return await storage.listFiles(STORAGE_BUCKET_ID)
 }

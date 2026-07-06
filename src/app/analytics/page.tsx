@@ -1,178 +1,184 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useState } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery } from '@tanstack/react-query'
+import { listSimulados } from '@/services/database/simulados'
+import { listFlashcards } from '@/services/database/flashcards'
+import { listReviews } from '@/services/database/reviews'
 import AppShell from '@/components/layout/AppShell'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion } from 'framer-motion'
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
-} from 'recharts'
-import { BarChart3, TrendingUp, Target, Clock, Brain, Award } from 'lucide-react'
-
-const COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899']
+  BarChart3, TrendingUp, Target, Clock, Brain, PieChart,
+  CheckCircle, XCircle, Layers, RotateCcw,
+} from 'lucide-react'
 
 export default function AnalyticsPage() {
-  const [loading, setLoading] = useState(true)
-  const [simulados, setSimulados] = useState<{ nota: number; nota_maxima: number; materia_id: string; tempo_total: number; criado_em: string }[]>([])
-  const [respostas, setRespostas] = useState<{ questao_id: string; esta_correta: boolean; tempo_gasto: number }[]>([])
-  const [questoes, setQuestoes] = useState<{ id: string; materia_id: string; subtema_id: string }[]>([])
-  const [materias, setMaterias] = useState<{ id: string; nome: string; cor?: string }[]>([])
-  const [subtemas, setSubtemas] = useState<{ id: string; nome: string }[]>([])
+  const { data: user, isLoading: userLoading } = useCurrentUser()
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    const [{ data: s }, { data: r }, { data: q }, { data: m }, { data: st }] = await Promise.all([
-      supabase.from('simulados').select('nota, nota_maxima, materia_id, tempo_total, criado_em').eq('status', 'finalizado').order('criado_em'),
-      supabase.from('respostas_simulado').select('questao_id, esta_correta, tempo_gasto'),
-      supabase.from('questoes').select('id, materia_id, subtema_id'),
-      supabase.from('materias').select('id, nome, cor'),
-      supabase.from('subtemas').select('id, nome'),
-    ])
-    setSimulados(s || []); setRespostas(r || []); setQuestoes(q || [])
-    setMaterias(m || []); setSubtemas(st || [])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { carregar() }, [carregar])
-
-  // Derived data
-  const totalSims = simulados.length
-  const mediaGeral = totalSims > 0 ? simulados.reduce((a, s) => a + (s.nota_maxima > 0 ? s.nota / s.nota_maxima * 100 : 0), 0) / totalSims : 0
-  const totalRespostas = respostas.length
-  const totalAcertos = respostas.filter(r => r.esta_correta).length
-  const taxaAcerto = totalRespostas > 0 ? (totalAcertos / totalRespostas * 100) : 0
-
-  // Evolução
-  const evolucao = simulados.map((s, i) => ({
-    nome: `#${i + 1}`, nota: s.nota_maxima > 0 ? +(s.nota / s.nota_maxima * 100).toFixed(1) : 0
-  }))
-
-  // Por matéria
-  const porMateria = materias.map(m => {
-    const sims = simulados.filter(s => s.materia_id === m.id)
-    const media = sims.length > 0 ? sims.reduce((a, s) => a + (s.nota_maxima > 0 ? s.nota / s.nota_maxima * 100 : 0), 0) / sims.length : 0
-    return { nome: m.nome, media: +media.toFixed(1), total: sims.length, cor: m.cor || '#06b6d4' }
-  }).filter(m => m.total > 0).sort((a, b) => b.media - a.media)
-
-  // Erros por tema
-  const errosTema: Record<string, { acertos: number; total: number }> = {}
-  respostas.forEach(r => {
-    const q = questoes.find(x => x.id === r.questao_id)
-    if (q) {
-      const sub = subtemas.find(s => s.id === q.subtema_id)?.nome || 'Geral'
-      if (!errosTema[sub]) errosTema[sub] = { acertos: 0, total: 0 }
-      errosTema[sub].total++
-      if (r.esta_correta) errosTema[sub].acertos++
-    }
+  const { data: simulados = [] } = useQuery({
+    queryKey: ['simulados', user?.$id],
+    queryFn: () => listSimulados(user!.$id),
+    enabled: !!user,
   })
-  const radarData = Object.entries(errosTema)
-    .map(([tema, d]) => ({ tema, acerto: +(d.acertos / d.total * 100).toFixed(1) }))
-    .sort((a, b) => a.acerto - b.acerto).slice(0, 8)
 
-  // Distribuição acertos/erros
-  const pieData = [
-    { name: 'Acertos', value: totalAcertos },
-    { name: 'Erros', value: totalRespostas - totalAcertos },
-  ]
+  const { data: flashcards = [] } = useQuery({
+    queryKey: ['flashcards', user?.$id],
+    queryFn: () => listFlashcards(user!.$id),
+    enabled: !!user,
+  })
+
+  const { data: reviews = [] } = useQuery({
+    queryKey: ['reviews', user?.$id],
+    queryFn: () => listReviews(user!.$id),
+    enabled: !!user,
+  })
+
+  if (userLoading) return <AppShell><PageLoading /></AppShell>
+
+  const finalizados = simulados.filter(s => s.status === 'finalizado')
+  const totalQuestoes = finalizados.reduce((sum, s) => sum + (s.nota_maxima || 0), 0)
+  const totalAcertos = finalizados.reduce((sum, s) => sum + (s.nota || 0), 0)
+  const percentualGeral = totalQuestoes > 0 ? Math.round((totalAcertos / totalQuestoes) * 100) : 0
+  const tempoTotal = finalizados.reduce((sum, s) => sum + (s.tempo_total || 0), 0)
+  const reviewsConcluidas = reviews.filter(r => r.status === 'concluida').length
+  const flashcardsMaduros = flashcards.filter(f => f.state === 'review').length
 
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analytics Avançado</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Análise detalhada do seu desempenho acadêmico</p>
+          <h1 className="page-title">Analytics</h1>
+          <p className="page-subtitle">Seu desempenho geral de estudos</p>
         </div>
       </div>
+      <div className="page-body space-y-6">
+        {/* Big stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { icon: Target, label: 'Taxa de Acerto', value: `${percentualGeral}%`, color: percentualGeral >= 70 ? 'emerald' : 'amber' },
+            { icon: Brain, label: 'Questões Feitas', value: totalQuestoes.toString(), color: 'cyan' },
+            { icon: Clock, label: 'Tempo Total', value: tempoTotal > 0 ? `${Math.round(tempoTotal / 60)}min` : '—', color: 'violet' },
+            { icon: TrendingUp, label: 'Simulados', value: finalizados.length.toString(), color: 'rose' },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="stat-card"
+            >
+              <stat.icon size={18} className={`text-${stat.color}-400 mb-2`} />
+              <p className="text-3xl font-black text-slate-100">{stat.value}</p>
+              <p className="text-xs text-slate-500">{stat.label}</p>
+            </motion.div>
+          ))}
+        </div>
 
-      <div className="page-body space-y-8">
-        {loading ? (
-          <div className="flex justify-center py-20"><div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>
-        ) : totalSims === 0 ? (
-          <div className="text-center py-16">
-            <BarChart3 size={48} className="mx-auto text-slate-700 mb-3" />
-            <h3 className="text-lg font-semibold text-slate-300">Sem dados ainda</h3>
-            <p className="text-sm text-slate-500 mt-1">Finalize simulados para ver seu analytics.</p>
-          </div>
-        ) : (
-          <>
-            {/* Summary */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { icon: Award, label: 'Simulados', value: totalSims, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-                { icon: Target, label: 'Média Geral', value: `${mediaGeral.toFixed(1)}%`, color: mediaGeral >= 60 ? 'text-emerald-400' : 'text-red-400', bg: mediaGeral >= 60 ? 'bg-emerald-500/10' : 'bg-red-500/10' },
-                { icon: TrendingUp, label: 'Taxa de Acerto', value: `${taxaAcerto.toFixed(1)}%`, color: 'text-violet-400', bg: 'bg-violet-500/10' },
-                { icon: Clock, label: 'Questões Respondidas', value: totalRespostas, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-              ].map((stat, i) => (
-                <div key={i} className="stat-card">
-                  <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center mb-3`}>
-                    <stat.icon size={18} className={stat.color} />
-                  </div>
-                  <p className={`text-2xl font-extrabold ${stat.color}`}>{stat.value}</p>
-                  <p className="text-xs text-slate-500 mt-1">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="glass-card p-6">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4">📈 Evolução de Desempenho</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={evolucao}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" />
-                    <XAxis dataKey="nome" stroke="#64748b" fontSize={11} />
-                    <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="nota" stroke="#06b6d4" strokeWidth={2.5} dot={{ fill: '#06b6d4', r: 4 }} name="Nota (%)" />
-                  </LineChart>
-                </ResponsiveContainer>
+        {/* Secondary stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="glass-card p-6"
+          >
+            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+              <Layers size={14} className="text-cyan-400" />
+              Flashcards
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Total</span>
+                <span className="text-sm font-semibold text-slate-200">{flashcards.length}</span>
               </div>
-
-              <div className="glass-card p-6">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4">📊 Desempenho por Matéria</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={porMateria} layout="vertical">
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" />
-                    <XAxis type="number" domain={[0, 100]} stroke="#64748b" fontSize={11} />
-                    <YAxis dataKey="nome" type="category" stroke="#64748b" fontSize={10} width={100} />
-                    <Tooltip />
-                    <Bar dataKey="media" name="Média (%)" radius={[0, 6, 6, 0]}>
-                      {porMateria.map((entry, i) => <Cell key={i} fill={entry.cor} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Maduros</span>
+                <span className="text-sm font-semibold text-emerald-400">{flashcardsMaduros}</span>
               </div>
-
-              <div className="glass-card p-6">
-                <h3 className="text-sm font-semibold text-slate-300 mb-4">🎯 Acertos vs Erros</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value">
-                      <Cell fill="#10b981" />
-                      <Cell fill="#ef4444" />
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Para Revisar</span>
+                <span className="text-sm font-semibold text-amber-400">
+                  {flashcards.filter(f => !f.due || new Date(f.due) <= new Date()).length}
+                </span>
               </div>
-
-              {radarData.length >= 3 && (
-                <div className="glass-card p-6">
-                  <h3 className="text-sm font-semibold text-slate-300 mb-4">🕸️ Mapa de Conhecimento</h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <RadarChart data={radarData}>
-                      <PolarGrid stroke="rgba(255,255,255,0.06)" />
-                      <PolarAngleAxis dataKey="tema" tick={{ fill: '#64748b', fontSize: 10 }} />
-                      <Radar name="Acerto %" dataKey="acerto" stroke="#06b6d4" fill="#06b6d4" fillOpacity={0.15} />
-                    </RadarChart>
-                  </ResponsiveContainer>
+              {flashcards.length > 0 && (
+                <div className="progress-bar">
+                  <div className="progress-bar-fill" style={{ width: `${(flashcardsMaduros / flashcards.length) * 100}%` }} />
                 </div>
               )}
             </div>
-          </>
-        )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="glass-card p-6"
+          >
+            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+              <RotateCcw size={14} className="text-violet-400" />
+              Revisões
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Total</span>
+                <span className="text-sm font-semibold text-slate-200">{reviews.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Concluídas</span>
+                <span className="text-sm font-semibold text-emerald-400">{reviewsConcluidas}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Pendentes</span>
+                <span className="text-sm font-semibold text-amber-400">
+                  {reviews.filter(r => r.status === 'pendente').length}
+                </span>
+              </div>
+              {reviews.length > 0 && (
+                <div className="progress-bar">
+                  <div className="progress-bar-fill" style={{ width: `${(reviewsConcluidas / reviews.length) * 100}%`, background: 'linear-gradient(to right, #8b5cf6, #a78bfa)' }} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="glass-card p-6"
+          >
+            <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+              <BarChart3 size={14} className="text-emerald-400" />
+              Desempenho em Simulados
+            </h3>
+            {finalizados.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">Faça seu primeiro simulado para ver dados</p>
+            ) : (
+              <div className="space-y-2">
+                {finalizados.slice(0, 5).map((sim, i) => {
+                  const pct = sim.nota_maxima ? Math.round(((sim.nota || 0) / sim.nota_maxima) * 100) : 0
+                  return (
+                    <div key={sim.$id} className="flex items-center gap-3">
+                      <span className="text-[0.6rem] text-slate-600 w-16 truncate">{sim.titulo}</span>
+                      <div className="flex-1 h-2 rounded-full bg-white/[0.04]">
+                        <div
+                          className={`h-full rounded-full ${pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-semibold ${pct >= 70 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-rose-400'}`}>
+                        {pct}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </motion.div>
+        </div>
       </div>
     </AppShell>
   )

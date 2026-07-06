@@ -1,29 +1,38 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
-  const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
-
-  if (!OPENROUTER_API_KEY) {
-    return NextResponse.json({ error: 'Chave da API ausente no servidor.' }, { status: 500 })
-  }
-
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const apiKey = process.env.OPENROUTER_API_KEY
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'OPENROUTER_API_KEY not configured' }, { status: 500 })
+    }
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': 'https://studypro.app',
-        'X-Title': 'StudyPro'
+        'X-Title': 'StudyPro v4',
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     })
 
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OpenRouter API error:', response.status, errorText)
+      return NextResponse.json(
+        { error: `OpenRouter API error: ${response.status}` },
+        { status: response.status }
+      )
+    }
+
     const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
+    return NextResponse.json(data)
   } catch (error) {
-    console.error('Erro proxy OpenRouter:', error)
-    return NextResponse.json({ error: 'Erro interno ao contatar OpenRouter' }, { status: 500 })
+    console.error('OpenRouter route error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

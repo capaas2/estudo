@@ -1,214 +1,297 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useToast } from '@/components/shared/Toast'
-import { gerarFlashcardsIA } from '@/services/iaService'
+import { useState } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listFlashcards, createFlashcard, updateFlashcard, deleteFlashcard } from '@/services/database/flashcards'
+import { createFlashcardReview } from '@/services/database/flashcards'
+import { schedule, previewSchedule, formatInterval } from '@/lib/fsrs'
+import type { Rating } from '@/lib/fsrs'
 import AppShell from '@/components/layout/AppShell'
+import EmptyState from '@/components/shared/EmptyState'
+import Modal from '@/components/shared/Modal'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Layers, Plus, RotateCcw, X, Save, Brain, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
-
-interface FlashcardData {
-  id: string; frente: string; verso: string; deck: string; tags?: string[]; materia_id?: string
-}
+import {
+  Layers, Plus, RotateCcw, Eye, EyeOff, Trash2, Search,
+  ChevronRight, ArrowLeft,
+} from 'lucide-react'
+import type { Flashcard } from '@/types/database'
 
 export default function FlashcardsPage() {
-  const toast = useToast()
-  const [cards, setCards] = useState<FlashcardData[]>([])
-  const [materias, setMaterias] = useState<{ id: string; nome: string }[]>([])
-  const [deckFilter, setDeckFilter] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [showStudy, setShowStudy] = useState(false)
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const [flipped, setFlipped] = useState(false)
-  const [showIAForm, setShowIAForm] = useState(false)
-  const [iaContent, setIaContent] = useState('')
-  const [iaMateria, setIaMateria] = useState('')
-  const [iaLoading, setIaLoading] = useState(false)
-  const [formData, setFormData] = useState({ frente: '', verso: '', deck: 'Geral', materia_id: '' })
+  const { data: user, isLoading: userLoading } = useCurrentUser()
+  const queryClient = useQueryClient()
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    const [{ data: f }, { data: m }] = await Promise.all([
-      supabase.from('flashcards').select('*').order('criado_em', { ascending: false }),
-      supabase.from('materias').select('id, nome'),
-    ])
-    setCards(f || [])
-    setMaterias(m || [])
-    setLoading(false)
-  }, [])
+  const [mode, setMode] = useState<'browse' | 'review'>('browse')
+  const [reviewIndex, setReviewIndex] = useState(0)
+  const [showAnswer, setShowAnswer] = useState(false)
+  const [search, setSearch] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newFront, setNewFront] = useState('')
+  const [newBack, setNewBack] = useState('')
+  const [newDeck, setNewDeck] = useState('Geral')
 
-  useEffect(() => { carregar() }, [carregar])
+  const { data: flashcards = [], isLoading } = useQuery({
+    queryKey: ['flashcards', user?.$id],
+    queryFn: () => listFlashcards(user!.$id),
+    enabled: !!user,
+  })
 
-  const decks = [...new Set(cards.map(c => c.deck))]
-  const filtered = deckFilter ? cards.filter(c => c.deck === deckFilter) : cards
+  const createMutation = useMutation({
+    mutationFn: () => createFlashcard(user!.$id, {
+      deck: newDeck,
+      frente: newFront,
+      verso: newBack,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flashcards'] })
+      setNewFront('')
+      setNewBack('')
+    },
+  })
 
-  async function criar() {
-    if (!formData.frente || !formData.verso) return toast('Preencha frente e verso.', 'error')
-    await supabase.from('flashcards').insert({
-      frente: formData.frente, verso: formData.verso, deck: formData.deck || 'Geral',
-      materia_id: formData.materia_id || null
-    })
-    toast('Flashcard criado!', 'success')
-    setShowForm(false)
-    setFormData({ frente: '', verso: '', deck: 'Geral', materia_id: '' })
-    carregar()
-  }
+  const reviewMutation = useMutation({
+    mutationFn: async ({ card, rating }: { card: Flashcard; rating: Rating }) => {
+      const result = schedule(card, rating)
 
-  async function gerarIA() {
-    if (!iaContent || !iaMateria) return toast('Preencha conteúdo e matéria.', 'error')
-    setIaLoading(true)
-    try {
-      const result = await gerarFlashcardsIA(iaContent, iaMateria, 10)
-      const flashcards = (result as { flashcards: { frente: string; verso: string; tags?: string[] }[] }).flashcards || []
-      if (flashcards.length === 0) return toast('IA não gerou flashcards.', 'error')
-      for (const fc of flashcards) {
-        await supabase.from('flashcards').insert({
-          frente: fc.frente, verso: fc.verso, deck: iaMateria, tags: fc.tags || []
-        })
+      await updateFlashcard(card.$id, {
+        stability: result.stability,
+        difficulty: result.difficulty,
+        state: result.state,
+        due: result.due,
+        reps: card.reps + 1,
+        lapses: rating === 'again' ? card.lapses + 1 : card.lapses,
+        last_review: new Date().toISOString(),
+      })
+
+      await createFlashcardReview(user!.$id, {
+        flashcard_id: card.$id,
+        rating,
+        stability: result.stability,
+        difficulty: result.difficulty,
+        elapsed_days: result.elapsed_days,
+        scheduled_days: result.scheduled_days,
+        state: result.state,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flashcards'] })
+      setShowAnswer(false)
+      if (reviewIndex < dueCards.length - 1) {
+        setReviewIndex(i => i + 1)
+      } else {
+        setMode('browse')
+        setReviewIndex(0)
       }
-      toast(`${flashcards.length} flashcards gerados pela IA! 🧠`, 'success')
-      setShowIAForm(false)
-      carregar()
-    } catch { toast('Erro ao gerar flashcards.', 'error') }
-    setIaLoading(false)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteFlashcard(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['flashcards'] }),
+  })
+
+  const dueCards = flashcards.filter(f => !f.due || new Date(f.due) <= new Date())
+  const filtered = flashcards.filter(f =>
+    f.frente.toLowerCase().includes(search.toLowerCase()) ||
+    f.verso.toLowerCase().includes(search.toLowerCase())
+  )
+
+  // Group by deck
+  const decks = filtered.reduce<Record<string, Flashcard[]>>((acc, card) => {
+    const deck = card.deck || 'Sem Deck'
+    if (!acc[deck]) acc[deck] = []
+    acc[deck].push(card)
+    return acc
+  }, {})
+
+  if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
+
+  // REVIEW MODE
+  if (mode === 'review' && dueCards.length > 0) {
+    const card = dueCards[reviewIndex]
+    if (!card) { setMode('browse'); return null }
+    const preview = previewSchedule(card)
+
+    return (
+      <AppShell>
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setMode('browse')} className="btn-icon">
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <h1 className="page-title">Revisão de Flashcards</h1>
+              <p className="page-subtitle">{reviewIndex + 1} de {dueCards.length}</p>
+            </div>
+          </div>
+        </div>
+        <div className="page-body max-w-2xl">
+          {/* Progress */}
+          <div className="progress-bar mb-6">
+            <div className="progress-bar-fill" style={{ width: `${((reviewIndex + 1) / dueCards.length) * 100}%` }} />
+          </div>
+
+          {/* Card */}
+          <motion.div
+            key={card.$id + (showAnswer ? '-a' : '-q')}
+            initial={{ opacity: 0, rotateY: showAnswer ? 180 : 0 }}
+            animate={{ opacity: 1, rotateY: 0 }}
+            className="glass-card p-8 min-h-[280px] flex flex-col items-center justify-center text-center"
+          >
+            <p className="text-lg text-slate-200 font-medium leading-relaxed">
+              {showAnswer ? card.verso : card.frente}
+            </p>
+            {!showAnswer && (
+              <button
+                onClick={() => setShowAnswer(true)}
+                className="btn-premium mt-6 text-xs"
+              >
+                <Eye size={14} />
+                Mostrar Resposta
+              </button>
+            )}
+          </motion.div>
+
+          {/* Rating buttons */}
+          {showAnswer && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-4 gap-3 mt-4"
+            >
+              {([
+                { rating: 'again' as Rating, label: 'Errei', color: 'rose', sub: preview.again.label },
+                { rating: 'hard' as Rating, label: 'Difícil', color: 'amber', sub: preview.hard.label },
+                { rating: 'good' as Rating, label: 'Bom', color: 'emerald', sub: preview.good.label },
+                { rating: 'easy' as Rating, label: 'Fácil', color: 'cyan', sub: preview.easy.label },
+              ]).map(btn => (
+                <button
+                  key={btn.rating}
+                  onClick={() => reviewMutation.mutate({ card, rating: btn.rating })}
+                  disabled={reviewMutation.isPending}
+                  className={`glass-card p-3 text-center transition-all hover:border-${btn.color}-500/30 hover:bg-${btn.color}-500/5`}
+                >
+                  <p className={`text-sm font-semibold text-${btn.color}-400`}>{btn.label}</p>
+                  <p className="text-[0.6rem] text-slate-500 mt-0.5">{btn.sub}</p>
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </div>
+      </AppShell>
+    )
   }
 
-  function startStudy() {
-    if (filtered.length === 0) return toast('Nenhum flashcard para estudar.', 'error')
-    setCurrentIdx(0)
-    setFlipped(false)
-    setShowStudy(true)
-  }
-
+  // BROWSE MODE
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Flashcards</h2>
-          <p className="text-slate-500 text-sm mt-0.5">{cards.length} cards · {decks.length} decks</p>
+          <h1 className="page-title">Flashcards</h1>
+          <p className="page-subtitle">{flashcards.length} cards • {dueCards.length} para revisar</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowIAForm(true)} className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-500/15 text-violet-400 hover:bg-violet-500/25 transition-colors flex items-center gap-2">
-            <Brain size={16} /> Gerar com IA
-          </button>
-          <button onClick={() => setShowForm(true)} className="btn-premium"><Plus size={16} /> Novo Card</button>
-        </div>
-      </div>
-
-      <div className="page-body space-y-6">
-        {/* Deck filters */}
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setDeckFilter('')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!deckFilter ? 'bg-cyan-500/15 text-cyan-400' : 'bg-white/[0.03] text-slate-500 hover:text-slate-300'}`}>
-            Todos ({cards.length})
-          </button>
-          {decks.map(d => (
-            <button key={d} onClick={() => setDeckFilter(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${deckFilter === d ? 'bg-cyan-500/15 text-cyan-400' : 'bg-white/[0.03] text-slate-500 hover:text-slate-300'}`}>
-              {d} ({cards.filter(c => c.deck === d).length})
-            </button>
-          ))}
-        </div>
-
-        {/* Study button */}
-        {filtered.length > 0 && (
-          <button onClick={startStudy} className="btn-premium"><RotateCcw size={16} /> Estudar ({filtered.length} cards)</button>
-        )}
-
-        {/* Cards grid */}
-        {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <Layers size={48} className="mx-auto text-slate-700 mb-3" />
-            <p className="text-slate-500">Nenhum flashcard ainda.</p>
-            <p className="text-slate-600 text-sm mt-1">Crie manualmente ou gere com IA!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.slice(0, 30).map(c => (
-              <div key={c.id} className="glass-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="badge-sm bg-violet-500/10 text-violet-400">{c.deck}</span>
-                </div>
-                <p className="text-sm font-semibold text-slate-200">{c.frente}</p>
-                <p className="text-xs text-slate-500 line-clamp-2">{c.verso}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Study Mode */}
-      <AnimatePresence>
-        {showStudy && filtered.length > 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-[#0a0e1a]/95 backdrop-blur-xl z-[100] flex flex-col items-center justify-center p-4">
-            <button onClick={() => setShowStudy(false)} className="absolute top-6 right-6 text-slate-500 hover:text-slate-300"><X size={24} /></button>
-            <p className="text-sm text-slate-500 mb-4">{currentIdx + 1} / {filtered.length}</p>
-            <motion.div
-              key={currentIdx + '-' + String(flipped)}
-              initial={{ rotateY: 90 }} animate={{ rotateY: 0 }}
-              className="glass-card p-10 w-full max-w-xl min-h-[250px] flex items-center justify-center cursor-pointer"
-              onClick={() => setFlipped(!flipped)}
+        <div className="flex items-center gap-2">
+          {dueCards.length > 0 && (
+            <button
+              onClick={() => { setMode('review'); setReviewIndex(0); setShowAnswer(false) }}
+              className="btn-secondary text-xs"
             >
-              <p className={`text-center ${flipped ? 'text-base text-slate-300' : 'text-xl font-bold text-slate-100'}`}>
-                {flipped ? filtered[currentIdx].verso : filtered[currentIdx].frente}
-              </p>
-            </motion.div>
-            <p className="text-xs text-slate-600 mt-3">Clique para virar</p>
-            <div className="flex gap-4 mt-6">
-              <button onClick={() => { setCurrentIdx(Math.max(0, currentIdx - 1)); setFlipped(false) }}
-                disabled={currentIdx === 0} className="p-3 rounded-xl bg-white/[0.04] text-slate-400 disabled:opacity-30">
-                <ArrowLeft size={20} />
-              </button>
-              <button onClick={() => { setCurrentIdx(Math.min(filtered.length - 1, currentIdx + 1)); setFlipped(false) }}
-                disabled={currentIdx === filtered.length - 1} className="p-3 rounded-xl bg-white/[0.04] text-slate-400 disabled:opacity-30">
-                <ArrowRight size={20} />
-              </button>
+              <RotateCcw size={14} />
+              Revisar ({dueCards.length})
+            </button>
+          )}
+          <button onClick={() => setShowCreateModal(true)} className="btn-premium text-xs">
+            <Plus size={14} />
+            Novo Flashcard
+          </button>
+        </div>
+      </div>
+      <div className="page-body">
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar flashcards..."
+            className="form-input pl-9 text-sm"
+          />
+        </div>
+
+        {flashcards.length === 0 ? (
+          <EmptyState
+            icon={Layers}
+            title="Nenhum flashcard"
+            description="Crie flashcards manualmente ou gere via IA."
+            action={{ label: 'Criar Flashcard', onClick: () => setShowCreateModal(true) }}
+          />
+        ) : (
+          Object.entries(decks).map(([deckName, cards]) => (
+            <div key={deckName} className="mb-6">
+              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                {deckName} ({cards.length})
+              </h2>
+              <div className="space-y-2">
+                {cards.map(card => (
+                  <div key={card.$id} className="glass-card p-4 flex items-center gap-4 group">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-200 truncate">{card.frente}</p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">{card.verso}</p>
+                    </div>
+                    <span className={`badge-sm badge-${
+                      card.state === 'new' ? 'cyan' : card.state === 'review' ? 'emerald' : 'amber'
+                    }`}>
+                      {card.state === 'new' ? 'Novo' : card.state === 'review' ? 'Revisão' : 'Aprendendo'}
+                    </span>
+                    <button
+                      onClick={() => deleteMutation.mutate(card.$id)}
+                      className="btn-icon text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </motion.div>
+          ))
         )}
-      </AnimatePresence>
+      </div>
 
       {/* Create Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-bold mb-4">Novo Flashcard</h3>
-              <div className="space-y-3">
-                <textarea placeholder="Frente (pergunta)" value={formData.frente} onChange={e => setFormData({ ...formData, frente: e.target.value })} className="input-dark min-h-[80px]" />
-                <textarea placeholder="Verso (resposta)" value={formData.verso} onChange={e => setFormData({ ...formData, verso: e.target.value })} className="input-dark min-h-[80px]" />
-                <input placeholder="Deck" value={formData.deck} onChange={e => setFormData({ ...formData, deck: e.target.value })} className="input-dark" />
-              </div>
-              <button onClick={criar} className="btn-premium w-full justify-center mt-4"><Save size={16} /> Criar</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* IA Modal */}
-      <AnimatePresence>
-        {showIAForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowIAForm(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="glass-card p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Brain size={20} className="text-violet-400" /> Gerar Flashcards com IA</h3>
-              <div className="space-y-3">
-                <input placeholder="Matéria / Assunto" value={iaMateria} onChange={e => setIaMateria(e.target.value)} className="input-dark" />
-                <textarea placeholder="Cole aqui o conteúdo para gerar flashcards..." value={iaContent} onChange={e => setIaContent(e.target.value)} className="input-dark min-h-[150px]" />
-              </div>
-              <button onClick={gerarIA} disabled={iaLoading} className="btn-premium w-full justify-center mt-4 disabled:opacity-50">
-                {iaLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Sparkles size={16} /> Gerar 10 Flashcards</>}
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Novo Flashcard"
+        footer={
+          <>
+            <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Fechar</button>
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={!newFront.trim() || !newBack.trim() || createMutation.isPending}
+              className="btn-premium text-xs"
+            >
+              {createMutation.isPending ? 'Criando...' : 'Criar e Continuar'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Deck</label>
+            <input type="text" value={newDeck} onChange={e => setNewDeck(e.target.value)} placeholder="Geral" className="form-input" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Frente (Pergunta)</label>
+            <textarea value={newFront} onChange={e => setNewFront(e.target.value)} placeholder="Pergunta..." className="form-textarea" rows={3} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Verso (Resposta)</label>
+            <textarea value={newBack} onChange={e => setNewBack(e.target.value)} placeholder="Resposta..." className="form-textarea" rows={3} />
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }

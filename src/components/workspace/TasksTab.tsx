@@ -1,287 +1,157 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { 
-  Plus, 
-  MoreHorizontal, 
-  Clock, 
-  AlertCircle, 
-  CheckCircle2, 
-  Circle,
-  GripVertical,
-  Calendar as CalendarIcon,
-  Filter,
-  Search,
-  Trash2,
-  ChevronRight
-} from 'lucide-react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { ListChecks, Plus, Check, Trash2, Circle } from 'lucide-react'
+
+interface TasksTabProps {
+  materiaId: string
+}
 
 interface Task {
   id: string
   titulo: string
-  descricao: string
-  status: 'todo' | 'doing' | 'done'
-  prioridade: 'baixa' | 'media' | 'alta' | 'urgente'
-  vencimento: string | null
-  ordem: number
+  concluida: boolean
+  createdAt: Date
 }
 
-interface TasksTabProps {
-  materiaId: string
-  workspaceId: string
-  mainColor: string
-}
-
-export default function TasksTab({ materiaId, workspaceId, mainColor }: TasksTabProps) {
+export default function TasksTab({ materiaId }: TasksTabProps) {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isAddingTask, setIsAddingTask] = useState<string | null>(null) // Column ID
-  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTask, setNewTask] = useState('')
+  const [filter, setFilter] = useState<'todas' | 'pendentes' | 'concluidas'>('todas')
 
-  useEffect(() => {
-    fetchTasks()
-  }, [workspaceId])
-
-  async function fetchTasks() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .order('ordem', { ascending: true })
-
-      if (error) throw error
-      setTasks(data || [])
-    } catch (error) {
-      console.error('Erro ao buscar tarefas:', error)
-    } finally {
-      setLoading(false)
-    }
+  function addTask() {
+    if (!newTask.trim()) return
+    setTasks(prev => [{
+      id: Date.now().toString(),
+      titulo: newTask.trim(),
+      concluida: false,
+      createdAt: new Date(),
+    }, ...prev])
+    setNewTask('')
   }
 
-  async function addTask(status: string) {
-    if (!newTaskTitle.trim()) return
-    try {
-      const user = (await supabase.auth.getUser()).data.user
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert({
-          user_id: user?.id,
-          workspace_id: workspaceId,
-          materia_id: materiaId,
-          titulo: newTaskTitle,
-          status: status,
-          ordem: tasks.filter(t => t.status === status).length,
-          prioridade: 'media'
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-      setTasks([...tasks, data])
-      setNewTaskTitle('')
-      setIsAddingTask(null)
-    } catch (error) {
-      console.error('Erro ao adicionar tarefa:', error)
-    }
+  function toggleTask(id: string) {
+    setTasks(prev => prev.map(t =>
+      t.id === id ? { ...t, concluida: !t.concluida } : t
+    ))
   }
 
-  async function updateTaskStatus(taskId: string, newStatus: Task['status']) {
-    try {
-      const { error } = await supabase
-        .from('tasks')
-        .update({ status: newStatus })
-        .eq('id', taskId)
-
-      if (error) throw error
-      setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
-    } catch (error) {
-      console.error('Erro ao atualizar tarefa:', error)
-    }
+  function deleteTask(id: string) {
+    setTasks(prev => prev.filter(t => t.id !== id))
   }
 
-  async function deleteTask(taskId: string) {
-    try {
-      const { error } = await supabase.from('tasks').delete().eq('id', taskId)
-      if (error) throw error
-      setTasks(tasks.filter(t => t.id !== taskId))
-    } catch (error) {
-      console.error('Erro ao excluir tarefa:', error)
-    }
-  }
+  const filtered = tasks.filter(t => {
+    if (filter === 'pendentes') return !t.concluida
+    if (filter === 'concluidas') return t.concluida
+    return true
+  })
 
-  const columns = [
-    { id: 'todo', label: 'A Fazer', icon: Circle, color: 'text-slate-400' },
-    { id: 'doing', label: 'Em Andamento', icon: Clock, color: 'text-amber-500' },
-    { id: 'done', label: 'Concluído', icon: CheckCircle2, color: 'text-emerald-500' },
-  ]
-
-  const priorityColors = {
-    baixa: 'bg-slate-500/20 text-slate-400',
-    media: 'bg-blue-500/20 text-blue-400',
-    alta: 'bg-orange-500/20 text-orange-400',
-    urgente: 'bg-red-500/20 text-red-400',
-  }
+  const totalPendentes = tasks.filter(t => !t.concluida).length
+  const totalConcluidas = tasks.filter(t => t.concluida).length
 
   return (
-    <div className="h-full flex flex-col gap-6">
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4 w-full sm:w-auto">
-          <h3 className="text-lg lg:text-xl font-bold text-white whitespace-nowrap">Board de Tarefas</h3>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 ml-auto sm:ml-0">
-            <Filter size={14} className="text-slate-500" />
-            <span className="text-[10px] lg:text-xs font-bold text-slate-400 uppercase tracking-tighter">Filtros</span>
-          </div>
+    <div className="space-y-4">
+      {/* Add task */}
+      <form
+        onSubmit={e => { e.preventDefault(); addTask() }}
+        className="flex items-center gap-3"
+      >
+        <input
+          type="text"
+          value={newTask}
+          onChange={e => setNewTask(e.target.value)}
+          placeholder="Nova tarefa..."
+          className="form-input flex-1"
+        />
+        <button
+          type="submit"
+          disabled={!newTask.trim()}
+          className="btn-premium text-xs"
+        >
+          <Plus size={14} />
+          Adicionar
+        </button>
+      </form>
+
+      {/* Filters + stats */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {(['todas', 'pendentes', 'concluidas'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={filter === f ? 'tab-item-active' : 'tab-item'}
+            >
+              {f === 'todas' ? `Todas (${tasks.length})` : f === 'pendentes' ? `Pendentes (${totalPendentes})` : `Concluídas (${totalConcluidas})`}
+            </button>
+          ))}
         </div>
-        
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-            <input 
-              type="text" 
-              placeholder="Buscar tarefas..." 
-              className="bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs focus:outline-none focus:border-white/20 transition-all w-full sm:w-48"
+      </div>
+
+      {/* Progress */}
+      {tasks.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-400">Progresso</span>
+            <span className="text-xs font-semibold text-cyan-400">
+              {tasks.length > 0 ? Math.round((totalConcluidas / tasks.length) * 100) : 0}%
+            </span>
+          </div>
+          <div className="progress-bar">
+            <div
+              className="progress-bar-fill"
+              style={{ width: `${tasks.length > 0 ? (totalConcluidas / tasks.length) * 100 : 0}%` }}
             />
           </div>
-          <button className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white transition-all shrink-0">
-            <MoreHorizontal size={18} />
-          </button>
         </div>
-      </header>
+      )}
 
-      <div className="flex-1 flex lg:grid lg:grid-cols-3 gap-6 overflow-x-auto lg:overflow-hidden pb-4 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 custom-scrollbar">
-        {columns.map((column) => (
-          <div key={column.id} className="flex flex-col min-w-[280px] sm:min-w-[320px] lg:min-w-0 bg-white/[0.01] rounded-2xl border border-white/[0.04] overflow-hidden">
-            <div className="p-4 border-b border-white/[0.04] flex items-center justify-between bg-white/[0.02]">
-              <div className="flex items-center gap-3">
-                <column.icon size={16} className={column.color} />
-                <h4 className="text-sm font-bold text-slate-200">{column.label}</h4>
-                <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] font-bold text-slate-500 border border-white/10">
-                  {tasks.filter(t => t.status === column.id).length}
-                </span>
-              </div>
-              <button 
-                onClick={() => setIsAddingTask(column.id)}
-                className="p-1 hover:bg-white/5 rounded-md text-slate-500 hover:text-slate-300 transition-all"
+      {/* Task list */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-12">
+          <ListChecks size={32} className="text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">
+            {tasks.length === 0 ? 'Nenhuma tarefa ainda' : 'Nenhuma tarefa neste filtro'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <AnimatePresence>
+            {filtered.map(task => (
+              <motion.div
+                key={task.id}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8, height: 0 }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.03] transition-colors group"
               >
-                <Plus size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-              <AnimatePresence>
-                {isAddingTask === column.id && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="glass-card p-4 border-dashed"
-                    style={{ borderColor: `${mainColor}40` }}
-                  >
-                    <input 
-                      autoFocus
-                      type="text" 
-                      placeholder="O que precisa ser feito?"
-                      value={newTaskTitle}
-                      onChange={(e) => setNewTaskTitle(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addTask(column.id)}
-                      className="w-full bg-transparent text-sm font-medium text-white focus:outline-none mb-3"
-                    />
-                    <div className="flex items-center justify-between">
-                       <div className="flex gap-2">
-                          <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-500 cursor-pointer hover:text-slate-300">
-                             <CalendarIcon size={12} />
-                          </div>
-                       </div>
-                       <div className="flex gap-2">
-                          <button 
-                            onClick={() => setIsAddingTask(null)}
-                            className="px-3 py-1 rounded-lg text-[10px] font-bold text-slate-500 hover:text-slate-300"
-                          >
-                            Cancelar
-                          </button>
-                          <button 
-                            onClick={() => addTask(column.id)}
-                            className="px-3 py-1 rounded-lg text-[10px] font-bold text-white shadow-lg"
-                            style={{ backgroundColor: mainColor }}
-                          >
-                            Adicionar
-                          </button>
-                       </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {tasks.filter(t => t.status === column.id).map((task) => (
-                  <motion.div
-                    key={task.id}
-                    layoutId={task.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="glass-card p-4 group cursor-grab active:cursor-grabbing border-white/[0.05] hover:border-white/10 transition-all"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 text-slate-600 group-hover:text-slate-400 transition-colors">
-                        <GripVertical size={14} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h5 className="text-sm font-semibold text-slate-200 mb-2 leading-tight">
-                          {task.titulo}
-                        </h5>
-                        
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-widest ${priorityColors[task.prioridade]}`}>
-                            {task.prioridade}
-                          </span>
-                          
-                          {task.vencimento && (
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
-                              <CalendarIcon size={10} />
-                              {format(new Date(task.vencimento), "dd MMM", { locale: ptBR })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button 
-                            onClick={() => deleteTask(task.id)}
-                            className="p-1 hover:text-red-400 text-slate-600 transition-colors"
-                         >
-                            <Trash2 size={12} />
-                         </button>
-                         <button 
-                            onClick={() => {
-                              const next = column.id === 'todo' ? 'doing' : 'done'
-                              updateTaskStatus(task.id, next as Task['status'])
-                            }}
-                            className="p-1 hover:text-emerald-400 text-slate-600 transition-colors"
-                            hidden={column.id === 'done'}
-                         >
-                            <ChevronRight size={12} />
-                         </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              
-              {!loading && tasks.filter(t => t.status === column.id).length === 0 && !isAddingTask && (
-                <div className="h-24 flex items-center justify-center border-2 border-dashed border-white/[0.03] rounded-2xl text-slate-700 text-xs italic">
-                  Solte tarefas aqui
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                <button
+                  onClick={() => toggleTask(task.id)}
+                  className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition-all ${
+                    task.concluida
+                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                      : 'border-white/[0.12] hover:border-cyan-500/30'
+                  }`}
+                >
+                  {task.concluida && <Check size={12} />}
+                </button>
+                <span className={`flex-1 text-sm transition-colors ${
+                  task.concluida ? 'text-slate-500 line-through' : 'text-slate-200'
+                }`}>
+                  {task.titulo}
+                </span>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  className="btn-icon text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   )
 }
-

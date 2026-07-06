@@ -1,190 +1,198 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useToast } from '@/components/shared/Toast'
+import { useState } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listReviews, createReview, updateReview, deleteReview } from '@/services/database/reviews'
 import AppShell from '@/components/layout/AppShell'
+import EmptyState from '@/components/shared/EmptyState'
+import Modal from '@/components/shared/Modal'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RotateCcw, CheckCircle2, Clock, AlertTriangle, ChevronDown, ChevronUp, Plus, X, Save, Calendar } from 'lucide-react'
-
-interface ReviewData {
-  id: string; titulo: string; tipo: string; status: string; data_revisao: string;
-  proxima_revisao?: string; intervalo_dias: number; nivel_confianca: number; materia_id?: string; origem?: string
-}
-
-const URGENCIA = {
-  pendente: { label: 'Pendente', color: 'text-amber-400', bg: 'bg-amber-500/10', icon: Clock },
-  concluida: { label: 'Concluída', color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
-  adiada: { label: 'Adiada', color: 'text-slate-400', bg: 'bg-slate-500/10', icon: AlertTriangle },
-}
+import {
+  RotateCcw, Plus, Check, Clock, AlertCircle, Trash2,
+  Calendar, ChevronRight, Filter,
+} from 'lucide-react'
+import type { Review } from '@/types/database'
 
 export default function RevisoesPage() {
-  const toast = useToast()
-  const [reviews, setReviews] = useState<ReviewData[]>([])
-  const [materias, setMaterias] = useState<{ id: string; nome: string }[]>([])
-  const [filtro, setFiltro] = useState('pendente')
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ titulo: '', materia_id: '', tipo: 'manual', data_revisao: '' })
+  const { data: user, isLoading: userLoading } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState<'todas' | 'pendente' | 'concluida'>('todas')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
-    const [{ data: r }, { data: m }] = await Promise.all([
-      supabase.from('reviews').select('*').order('data_revisao'),
-      supabase.from('materias').select('id, nome'),
-    ])
-    setReviews(r || [])
-    setMaterias(m || [])
-    setLoading(false)
-  }, [])
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ['reviews', user?.$id],
+    queryFn: () => listReviews(user!.$id),
+    enabled: !!user,
+  })
 
-  useEffect(() => { carregar() }, [carregar])
+  const createMutation = useMutation({
+    mutationFn: () => createReview(user!.$id, {
+      titulo: newTitle,
+      data_revisao: newDate,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      setShowCreateModal(false)
+      setNewTitle('')
+    },
+  })
 
-  const filtered = reviews.filter(r => r.status === filtro)
+  const completeMutation = useMutation({
+    mutationFn: (id: string) => updateReview(id, { status: 'concluida' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+  })
 
-  async function concluir(id: string, confianca: number) {
-    const review = reviews.find(r => r.id === id)
-    if (!review) return
-    const novoIntervalo = Math.max(1, Math.round(review.intervalo_dias * (confianca >= 4 ? 2.5 : confianca >= 3 ? 1.5 : 1)))
-    const proxima = new Date()
-    proxima.setDate(proxima.getDate() + novoIntervalo)
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteReview(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+  })
 
-    await supabase.from('reviews').update({
-      status: 'concluida', nivel_confianca: confianca, intervalo_dias: novoIntervalo,
-      proxima_revisao: proxima.toISOString()
-    }).eq('id', id)
-    toast('Revisão concluída! ✅', 'success')
-    carregar()
-  }
+  const today = new Date().toISOString().split('T')[0]
+  const pendentes = reviews.filter(r => r.status === 'pendente')
+  const atrasadas = pendentes.filter(r => r.data_revisao < today)
+  const paraHoje = pendentes.filter(r => r.data_revisao === today)
 
-  async function criar() {
-    if (!formData.titulo || !formData.data_revisao) return toast('Preencha título e data.', 'error')
-    await supabase.from('reviews').insert({
-      titulo: formData.titulo, materia_id: formData.materia_id || null, tipo: formData.tipo,
-      data_revisao: formData.data_revisao, status: 'pendente', intervalo_dias: 1, nivel_confianca: 0
-    })
-    toast('Revisão agendada!', 'success')
-    setShowForm(false)
-    setFormData({ titulo: '', materia_id: '', tipo: 'manual', data_revisao: '' })
-    carregar()
-  }
+  const filtered = reviews.filter(r => filter === 'todas' || r.status === filter)
 
-  const pendentes = reviews.filter(r => r.status === 'pendente').length
-  const concluidas = reviews.filter(r => r.status === 'concluida').length
-  const hoje = new Date().toISOString().split('T')[0]
-  const vencidas = reviews.filter(r => r.status === 'pendente' && r.data_revisao < hoje).length
+  if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
 
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Revisões Espaçadas</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Sistema de repetição espaçada para memorização eficiente</p>
+          <h1 className="page-title">Revisões</h1>
+          <p className="page-subtitle">{pendentes.length} pendente{pendentes.length !== 1 ? 's' : ''} • {atrasadas.length} atrasada{atrasadas.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="btn-premium"><Plus size={16} /> Nova Revisão</button>
+        <button onClick={() => setShowCreateModal(true)} className="btn-premium text-xs">
+          <Plus size={14} />
+          Nova Revisão
+        </button>
       </div>
-
-      <div className="page-body space-y-6">
+      <div className="page-body">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Pendentes', value: pendentes, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-            { label: 'Concluídas', value: concluidas, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { label: 'Vencidas', value: vencidas, color: 'text-red-400', bg: 'bg-red-500/10' },
-          ].map((s, i) => (
-            <div key={i} className="stat-card">
-              <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-slate-500 mt-1">{s.label}</p>
-            </div>
-          ))}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="stat-card">
+            <AlertCircle size={16} className="text-rose-400 mb-2" />
+            <p className="text-2xl font-bold text-rose-400">{atrasadas.length}</p>
+            <p className="text-xs text-slate-500">Atrasadas</p>
+          </div>
+          <div className="stat-card">
+            <Clock size={16} className="text-amber-400 mb-2" />
+            <p className="text-2xl font-bold text-amber-400">{paraHoje.length}</p>
+            <p className="text-xs text-slate-500">Para Hoje</p>
+          </div>
+          <div className="stat-card">
+            <Check size={16} className="text-emerald-400 mb-2" />
+            <p className="text-2xl font-bold text-emerald-400">{reviews.filter(r => r.status === 'concluida').length}</p>
+            <p className="text-xs text-slate-500">Concluídas</p>
+          </div>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-2 bg-white/[0.02] p-1 rounded-xl w-fit">
-          {(['pendente', 'concluida', 'adiada'] as const).map(f => (
-            <button
-              key={f} onClick={() => setFiltro(f)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filtro === f ? 'bg-cyan-500/15 text-cyan-400' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              {URGENCIA[f].label} ({reviews.filter(r => r.status === f).length})
+        {/* Filters */}
+        <div className="flex gap-1 mb-4">
+          {(['todas', 'pendente', 'concluida'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)} className={filter === f ? 'tab-item-active' : 'tab-item'}>
+              {f === 'todas' ? 'Todas' : f === 'pendente' ? 'Pendentes' : 'Concluídas'}
             </button>
           ))}
         </div>
 
         {/* List */}
-        {loading ? (
-          <div className="flex justify-center py-12"><div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" /></div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-12">
-            <RotateCcw size={40} className="mx-auto text-slate-700 mb-3" />
-            <p className="text-slate-500">Nenhuma revisão neste filtro.</p>
-          </div>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={RotateCcw}
+            title="Nenhuma revisão"
+            description="Revisões são criadas automaticamente a partir de erros em simulados."
+            action={{ label: 'Criar Revisão', onClick: () => setShowCreateModal(true) }}
+          />
         ) : (
-          <div className="space-y-3">
-            {filtered.map(r => {
-              const mat = materias.find(m => m.id === r.materia_id)?.nome
-              const vencida = r.status === 'pendente' && r.data_revisao < hoje
-              return (
-                <motion.div
-                  key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className={`glass-card p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 ${vencida ? 'border-red-500/20' : ''}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-slate-200 truncate">{r.titulo}</h4>
-                    <div className="flex items-center gap-3 mt-1">
-                      {mat && <span className="badge-sm bg-cyan-500/10 text-cyan-400">{mat}</span>}
-                      <span className="text-xs text-slate-500 flex items-center gap-1"><Calendar size={12} /> {new Date(r.data_revisao).toLocaleDateString('pt-BR')}</span>
-                      {vencida && <span className="badge-sm bg-red-500/10 text-red-400">Vencida!</span>}
+          <div className="space-y-2">
+            <AnimatePresence>
+              {filtered.map((review, i) => {
+                const isOverdue = review.status === 'pendente' && review.data_revisao < today
+
+                return (
+                  <motion.div
+                    key={review.$id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 8 }}
+                    transition={{ delay: i * 0.02 }}
+                    className={`glass-card p-4 flex items-center gap-4 ${isOverdue ? 'border-rose-500/20' : ''}`}
+                  >
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                      review.status === 'concluida' ? 'bg-emerald-500/10' : isOverdue ? 'bg-rose-500/10' : 'bg-amber-500/10'
+                    }`}>
+                      {review.status === 'concluida'
+                        ? <Check size={16} className="text-emerald-400" />
+                        : isOverdue
+                          ? <AlertCircle size={16} className="text-rose-400" />
+                          : <Clock size={16} className="text-amber-400" />
+                      }
                     </div>
-                  </div>
-                  {r.status === 'pendente' && (
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4, 5].map(n => (
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-200 truncate">{review.titulo}</p>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <Calendar size={10} />
+                        {new Date(review.data_revisao).toLocaleDateString('pt-BR')}
+                        {review.tipo === 'erro_simulado' && (
+                          <span className="badge-sm badge-rose">Erro Simulado</span>
+                        )}
+                        {review.origem && <span className="truncate max-w-[150px]">• {review.origem}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {review.status === 'pendente' && (
                         <button
-                          key={n} onClick={() => concluir(r.id, n)}
-                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
-                            n <= 2 ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                            : n <= 3 ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                          }`}
-                          title={['', 'Não lembro nada', 'Quase nada', 'Mais ou menos', 'Bem', 'Perfeito!'][n]}
+                          onClick={() => completeMutation.mutate(review.$id)}
+                          className="btn-icon text-emerald-400 hover:bg-emerald-500/10"
+                          title="Concluir"
                         >
-                          {n}
+                          <Check size={16} />
                         </button>
-                      ))}
+                      )}
+                      <button
+                        onClick={() => deleteMutation.mutate(review.$id)}
+                        className="btn-icon text-slate-500 hover:text-red-400"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  )}
-                </motion.div>
-              )
-            })}
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>
 
       {/* Create Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              className="glass-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold">Nova Revisão</h3>
-                <button onClick={() => setShowForm(false)} className="text-slate-500 hover:text-slate-300"><X size={18} /></button>
-              </div>
-              <div className="space-y-3">
-                <input placeholder="Título" value={formData.titulo} onChange={e => setFormData({ ...formData, titulo: e.target.value })} className="input-dark" />
-                <select value={formData.materia_id} onChange={e => setFormData({ ...formData, materia_id: e.target.value })} className="select-dark">
-                  <option value="">Matéria (opcional)</option>
-                  {materias.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
-                <input type="date" value={formData.data_revisao} onChange={e => setFormData({ ...formData, data_revisao: e.target.value })} className="input-dark" />
-              </div>
-              <button onClick={criar} className="btn-premium w-full justify-center mt-4"><Save size={16} /> Agendar Revisão</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Nova Revisão"
+        footer={
+          <>
+            <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Cancelar</button>
+            <button onClick={() => createMutation.mutate()} disabled={!newTitle.trim()} className="btn-premium text-xs">Criar</button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Título</label>
+            <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="O que revisar?" className="form-input" autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Data</label>
+            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="form-input" />
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }

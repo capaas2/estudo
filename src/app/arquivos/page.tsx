@@ -1,176 +1,218 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { FolderOpen, File, Trash2, ExternalLink, Download, UploadCloud, RefreshCw } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useToast } from '@/components/shared/Toast'
+import { useState, useRef } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery } from '@tanstack/react-query'
+import { listFiles, uploadFile, deleteFile, getFileUrl } from '@/services/storageService'
+import AppShell from '@/components/layout/AppShell'
+import EmptyState from '@/components/shared/EmptyState'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
+import { motion } from 'framer-motion'
+import {
+  FolderOpen, Upload, Trash2, FileText, Image, File,
+  Download, ExternalLink, Search, Grid, List, Sparkles,
+} from 'lucide-react'
 
 export default function ArquivosPage() {
-  const [arquivos, setArquivos] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: user, isLoading: userLoading } = useCurrentUser()
   const [uploading, setUploading] = useState(false)
-  const addToast = useToast()
-  
-  // O bucket principal que definimos no design foi questoes-imagens, mas podemos listar anexos em geral.
-  const BUCKET_NAME = 'questoes-imagens'
+  const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  useEffect(() => {
-    carregarArquivos()
-  }, [])
+  const { data: filesResponse, isLoading, refetch } = useQuery({
+    queryKey: ['files', user?.$id],
+    queryFn: () => listFiles(),
+    enabled: !!user,
+  })
 
-  async function carregarArquivos() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase.storage.from(BUCKET_NAME).list()
-      if (error) throw error
-      // Filtrar arquivos ocultos como .emptyFolderPlaceholder
-      setArquivos(data?.filter(f => f.name !== '.emptyFolderPlaceholder') || [])
-    } catch (error) {
-      const err = error as Error
-      addToast(err.message, 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const files = filesResponse?.files || []
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
+    const fileList = e.target.files
+    if (!fileList || fileList.length === 0) return
     setUploading(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`
-      const { error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, file)
-      
-      if (error) throw error
-      addToast('Upload concluído!', 'success')
-      carregarArquivos()
-    } catch (error) {
-      const err = error as Error
-      addToast(err.message, 'error')
+      for (const file of Array.from(fileList)) {
+        await uploadFile(file)
+      }
+      refetch()
+    } catch (err) {
+      console.error('Erro no upload:', err)
     } finally {
       setUploading(false)
+      e.target.value = ''
     }
   }
 
-  async function handleDelete(fileName: string) {
-    if (!confirm('Deseja realmente excluir este arquivo?')) return
-    
+  async function handleDelete(fileId: string) {
     try {
-      const { error } = await supabase.storage.from(BUCKET_NAME).remove([fileName])
-      if (error) throw error
-      addToast('Arquivo excluído com sucesso!', 'success')
-      carregarArquivos()
-    } catch (err: any) {
-      addToast(`Erro ao excluir: ${err.message}`, 'error')
+      await deleteFile(fileId)
+      refetch()
+    } catch (err) {
+      console.error('Erro ao deletar:', err)
     }
   }
 
-  function getPublicUrl(fileName: string) {
-    return supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName).data.publicUrl
+  function getFileIcon(name: string) {
+    const ext = name.split('.').pop()?.toLowerCase()
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return Image
+    if (['pdf', 'doc', 'docx', 'txt', 'md'].includes(ext || '')) return FileText
+    return File
   }
+
+  function formatSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const filtered = files.filter(f =>
+    f.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const totalSize = files.reduce((sum, f) => sum + (f.sizeOriginal || 0), 0)
+
+  if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <AppShell>
       <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
-            <FolderOpen className="text-cyan-500" /> Gerenciador de Arquivos
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Armazenamento em nuvem de anexos, PDFs e imagens das questões.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={carregarArquivos}
-            className="p-2.5 bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] rounded-xl text-slate-400 hover:text-slate-200 transition-all"
-            title="Atualizar"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-          
-          <label className="btn-premium cursor-pointer">
-            {uploading ? <RefreshCw size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-            {uploading ? 'Enviando...' : 'Fazer Upload'}
-            <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
-          </label>
+          <h1 className="page-title">Arquivos</h1>
+          <p className="page-subtitle">{files.length} arquivo{files.length !== 1 ? 's' : ''} • {formatSize(totalSize)}</p>
         </div>
       </div>
-
       <div className="page-body">
-        {loading ? (
-          <div className="flex items-center justify-center h-64 text-slate-500 gap-3">
-            <RefreshCw size={24} className="animate-spin text-cyan-500" /> Carregando seus arquivos...
+        {/* Upload area */}
+        <label className="glass-card p-6 border-dashed border-2 border-white/[0.08] hover:border-cyan-500/30 transition-all cursor-pointer flex flex-col items-center gap-3 group mb-6">
+          <div className="w-14 h-14 rounded-xl bg-cyan-500/10 flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
+            <Upload size={24} className="text-cyan-400" />
           </div>
-        ) : arquivos.length === 0 ? (
-          <div className="glass-card p-12 text-center flex flex-col items-center justify-center border-dashed">
-            <FolderOpen size={48} className="text-slate-600 mb-4" />
-            <h3 className="text-lg font-medium text-slate-200">Nenhum arquivo encontrado</h3>
-            <p className="text-slate-500 text-sm mt-2 max-w-sm">
-              Faça o upload de imagens de questões ou PDFs para acessá-los e vinculá-los aos seus materiais.
+          <div className="text-center">
+            <p className="text-sm text-slate-300 font-medium">
+              {uploading ? 'Fazendo upload...' : 'Clique ou arraste arquivos aqui'}
             </p>
+            <p className="text-xs text-slate-500 mt-1">PDF, imagens, documentos — até 50MB</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <AnimatePresence>
-              {arquivos.map((file) => (
-                <motion.div
-                  key={file.name}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="glass-card p-4 group"
-                >
-                  <div className="w-full h-32 bg-black/20 rounded-lg flex items-center justify-center mb-4 overflow-hidden border border-white/[0.04]">
-                    {file.metadata?.mimetype?.startsWith('image/') ? (
-                      <img src={getPublicUrl(file.name)} alt={file.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <File size={32} className="text-slate-500" />
-                    )}
-                  </div>
-                  
-                  <h4 className="text-sm font-medium text-slate-200 truncate" title={file.name}>
-                    {file.name}
-                  </h4>
-                  <p className="text-[0.65rem] text-slate-500 mt-1 uppercase">
-                    {(file.metadata?.size / 1024).toFixed(1)} KB • {new Date(file.created_at).toLocaleDateString('pt-BR')}
-                  </p>
+          <input type="file" multiple onChange={handleUpload} className="hidden" disabled={uploading} />
+          {uploading && (
+            <div className="w-40 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-cyan-500 to-violet-500 animate-shimmer rounded-full" style={{ width: '60%' }} />
+            </div>
+          )}
+        </label>
 
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/[0.06]">
-                    <a
-                      href={getPublicUrl(file.name)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex justify-center py-1.5 bg-white/[0.03] hover:bg-cyan-500/10 hover:text-cyan-400 text-slate-400 rounded-lg text-xs font-medium transition-colors"
-                      title="Abrir"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                    <a
-                      href={getPublicUrl(file.name)}
-                      download
-                      className="flex-1 flex justify-center py-1.5 bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 rounded-lg text-xs font-medium transition-colors"
-                      title="Download"
-                    >
-                      <Download size={14} />
-                    </a>
-                    <button
-                      onClick={() => handleDelete(file.name)}
-                      className="flex-1 flex justify-center py-1.5 bg-white/[0.03] hover:bg-red-500/10 hover:text-red-400 text-slate-400 rounded-lg text-xs font-medium transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar arquivos..."
+              className="form-input pl-9 text-sm"
+            />
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`btn-icon ${viewMode === 'grid' ? 'text-cyan-400 bg-cyan-500/10' : ''}`}
+            >
+              <Grid size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`btn-icon ${viewMode === 'list' ? 'text-cyan-400 bg-cyan-500/10' : ''}`}
+            >
+              <List size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Files */}
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={FolderOpen}
+            title={search ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
+            description="Faça upload de PDFs, imagens e materiais de estudo."
+          />
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((file, i) => {
+              const Icon = getFileIcon(file.name)
+              const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(file.name.split('.').pop()?.toLowerCase() || '')
+              return (
+                <motion.div
+                  key={file.$id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  className="glass-card-hover group overflow-hidden"
+                >
+                  {isImage && (
+                    <div className="h-32 bg-white/[0.02] flex items-center justify-center border-b border-white/[0.04]">
+                      <img
+                        src={getFileUrl(file.$id)}
+                        alt={file.name}
+                        className="max-h-full max-w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-start gap-3">
+                      {!isImage && (
+                        <div className="w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center shrink-0">
+                          <Icon size={18} className="text-slate-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-200 truncate">{file.name}</p>
+                        <p className="text-[0.65rem] text-slate-500">
+                          {formatSize(file.sizeOriginal)} • {new Date(file.$createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <a href={getFileUrl(file.$id)} target="_blank" rel="noopener noreferrer" className="btn-secondary text-[0.65rem] flex-1 justify-center">
+                        <ExternalLink size={12} /> Abrir
+                      </a>
+                      <button onClick={() => handleDelete(file.$id)} className="btn-icon text-slate-500 hover:text-red-400">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
-              ))}
-            </AnimatePresence>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {filtered.map((file, i) => {
+              const Icon = getFileIcon(file.name)
+              return (
+                <motion.div
+                  key={file.$id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.02 }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/[0.03] transition-colors group"
+                >
+                  <Icon size={16} className="text-slate-400 shrink-0" />
+                  <p className="text-sm text-slate-200 flex-1 truncate">{file.name}</p>
+                  <p className="text-xs text-slate-500 shrink-0">{formatSize(file.sizeOriginal)}</p>
+                  <p className="text-xs text-slate-600 shrink-0">{new Date(file.$createdAt).toLocaleDateString('pt-BR')}</p>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <a href={getFileUrl(file.$id)} target="_blank" rel="noopener noreferrer" className="btn-icon"><ExternalLink size={14} /></a>
+                    <button onClick={() => handleDelete(file.$id)} className="btn-icon text-slate-500 hover:text-red-400"><Trash2 size={14} /></button>
+                  </div>
+                </motion.div>
+              )
+            })}
           </div>
         )}
       </div>
-    </div>
+    </AppShell>
   )
 }

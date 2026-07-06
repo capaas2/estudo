@@ -1,16 +1,38 @@
-export interface Materia {
-  id: string
-  user_id?: string
+// ============================================================
+// StudyPro v4 — Schema de Tipos (Appwrite)
+// ============================================================
+// Cada interface mapeia para uma coleção no banco Appwrite.
+// Campos $id, $createdAt, $updatedAt são gerenciados pelo Appwrite.
+// ============================================================
+
+import type { Models } from 'appwrite'
+
+/** Tipo base com campos automáticos do Appwrite */
+export type AppwriteDocument = Models.Document
+
+// ------------------------------------------------------------
+// Períodos e Matérias
+// ------------------------------------------------------------
+
+export interface Period extends AppwriteDocument {
+  user_id: string
+  numero: number
   nome: string
-  descricao?: string
-  cor?: string
-  icone?: string
-  criado_em?: string
-  atualizado_em?: string
+  status: 'nao_iniciado' | 'em_andamento' | 'concluido'
+  progresso: number
+  capa_url?: string
+  meta_horas_semana?: number
 }
 
-export interface SubjectWorkspace {
-  id: string
+export interface Materia extends AppwriteDocument {
+  user_id: string
+  nome: string
+  descricao?: string
+  cor: string
+  icone?: string
+}
+
+export interface SubjectWorkspace extends AppwriteDocument {
   user_id: string
   materia_id: string
   period_id: string
@@ -20,18 +42,19 @@ export interface SubjectWorkspace {
   carga_horaria?: number
   cor_override?: string
   capa_url?: string
-  criado_em?: string
 }
 
-export interface Subtema {
-  id: string
+export interface Subtema extends AppwriteDocument {
   materia_id: string
   nome: string
-  criado_em?: string
 }
 
-export interface Questao {
-  id: string
+// ------------------------------------------------------------
+// Questões e Simulados
+// ------------------------------------------------------------
+
+export interface Questao extends AppwriteDocument {
+  user_id: string
   tipo: 'objetiva' | 'discursiva'
   materia_id: string
   subtema_id?: string
@@ -44,16 +67,21 @@ export interface Questao {
   peso?: number
   tags?: string[]
   imagem_url?: string
-  criado_em?: string
-  atualizado_em?: string
+  // Novos campos v4
+  banca?: string
+  estado?: string
+  ano?: number
+  instituicao?: string
+  favorita?: boolean
 }
 
-export interface Simulado {
-  id: string
+export interface Simulado extends AppwriteDocument {
+  user_id: string
   titulo: string
   materia_id: string
   subtema_ids?: string[]
   tipo: 'manual' | 'automatico'
+  modo: 'tutor' | 'cronometrado'
   status: 'criado' | 'em_andamento' | 'finalizado'
   questao_ids?: string[]
   cronometro_visivel?: boolean
@@ -62,12 +90,10 @@ export interface Simulado {
   tempo_total?: number
   nota?: number
   nota_maxima?: number
-  criado_em?: string
-  user_id?: string
 }
 
-export interface RespostaSimulado {
-  id: string
+export interface RespostaSimulado extends AppwriteDocument {
+  user_id: string
   simulado_id: string
   questao_id: string
   ordem: number
@@ -82,36 +108,23 @@ export interface RespostaSimulado {
   correcao_ia?: Record<string, unknown>
   feedback_ia?: string
   analise_tempo?: string
-  criado_em?: string
-  user_id?: string
 }
 
-export interface AnaliseSimulado {
-  id: string
+export interface AnaliseSimulado extends AppwriteDocument {
+  user_id: string
   simulado_id: string
   pontos_fracos?: string[]
   recomendacoes?: string[]
   analise_tempo_desempenho?: string
   tendencia?: string
   detalhes?: Record<string, unknown>
-  criado_em?: string
-  user_id?: string
 }
 
-export interface Period {
-  id: string
-  user_id: string
-  numero: number
-  nome: string
-  status: 'nao_iniciado' | 'em_andamento' | 'concluido'
-  progresso: number
-  capa_url?: string
-  meta_horas_semana?: number
-  criado_em?: string
-}
+// ------------------------------------------------------------
+// Notas (com backlinks e tipo tutoria)
+// ------------------------------------------------------------
 
-export interface Note {
-  id: string
+export interface Note extends AppwriteDocument {
   user_id: string
   materia_id?: string
   period_id?: string
@@ -121,39 +134,17 @@ export interface Note {
   icone?: string
   is_favorita?: boolean
   tags?: string[]
-  criado_em?: string
-  atualizado_em?: string
+  // Novos campos v4
+  tipo: 'comum' | 'resumo-ia' | 'tutoria'
+  backlinks?: string[]        // IDs de outras notas que referenciam esta
+  data_tutoria?: string       // Data da sessão de tutoria (quando tipo === 'tutoria')
 }
 
-export interface CalendarEvent {
-  id: string
-  user_id: string
-  titulo: string
-  descricao?: string
-  tipo: 'evento' | 'prova' | 'tutoria' | 'revisao' | 'tarefa' | 'aula'
-  materia_id?: string
-  data_inicio: string
-  data_fim?: string
-  cor?: string
-  recorrente?: boolean
-  google_event_id?: string
-  completo?: boolean
-  criado_em?: string
-}
+// ------------------------------------------------------------
+// Revisões (repetição espaçada)
+// ------------------------------------------------------------
 
-export interface StudySession {
-  id: string
-  user_id: string
-  materia_id?: string
-  tipo: 'livre' | 'pomodoro' | 'foco'
-  duracao_minutos: number
-  inicio: string
-  fim?: string
-  notas?: string
-}
-
-export interface Review {
-  id: string
+export interface Review extends AppwriteDocument {
   user_id: string
   materia_id?: string
   questao_id?: string
@@ -165,33 +156,47 @@ export interface Review {
   intervalo_dias: number
   nivel_confianca: number
   origem?: string
-  criado_em?: string
 }
 
-export interface Flashcard {
-  id: string
+// ------------------------------------------------------------
+// Flashcards (FSRS no lugar do SM-2)
+// ------------------------------------------------------------
+
+export interface Flashcard extends AppwriteDocument {
   user_id: string
   materia_id?: string
   deck: string
   frente: string
   verso: string
   tags?: string[]
-  criado_em?: string
+  // Campos FSRS
+  stability: number           // Estabilidade da memória
+  difficulty: number          // Dificuldade do card (0-10)
+  state: 'new' | 'learning' | 'review' | 'relearning'
+  reps: number                // Número de revisões
+  lapses: number              // Número de esquecimentos
+  last_review?: string        // Data da última revisão
+  due?: string                // Data de vencimento (próxima revisão)
 }
 
-export interface FlashcardReview {
-  id: string
+export interface FlashcardReview extends AppwriteDocument {
   user_id: string
   flashcard_id: string
-  qualidade: number
-  intervalo_dias: number
-  fator_facilidade: number
-  proxima_revisao?: string
-  revisado_em?: string
+  rating: 'again' | 'hard' | 'good' | 'easy'
+  // Snapshot do estado pós-revisão
+  stability: number
+  difficulty: number
+  elapsed_days: number
+  scheduled_days: number
+  state: 'new' | 'learning' | 'review' | 'relearning'
+  reviewed_at: string
 }
 
-export interface Goal {
-  id: string
+// ------------------------------------------------------------
+// Metas e Produtividade
+// ------------------------------------------------------------
+
+export interface Goal extends AppwriteDocument {
   user_id: string
   period_id?: string
   titulo: string
@@ -201,39 +206,9 @@ export interface Goal {
   materia_id?: string
   prazo?: string
   completa: boolean
-  criado_em?: string
 }
 
-export interface TutoringGroup {
-  id: string
-  user_id: string
-  nome: string
-  periodo_id?: string
-  ordem: number
-  criado_em?: string
-}
-
-export interface TutoringSection {
-  id: string
-  grupo_id: string
-  user_id: string
-  tipo: 'tutoria' | 'conferencia'
-  note_id?: string
-  criado_em?: string
-}
-
-export interface UserPreferences {
-  id: string
-  user_id: string
-  tema: string
-  sidebar_colapsada: boolean
-  google_token?: Record<string, unknown>
-  preferencias?: Record<string, unknown>
-  atualizado_em?: string
-}
-
-export interface ProductivityLog {
-  id: string
+export interface ProductivityLog extends AppwriteDocument {
   user_id: string
   data: string
   minutos_estudados: number
@@ -242,5 +217,44 @@ export interface ProductivityLog {
   revisoes_feitas: number
   flashcards_revisados: number
   streak_dias: number
-  criado_em?: string
+}
+
+// ------------------------------------------------------------
+// Embeddings (para IA Copilot RAG)
+// ------------------------------------------------------------
+
+export interface Embedding extends AppwriteDocument {
+  user_id: string
+  source_type: 'note' | 'arquivo'
+  source_id: string           // ID da nota ou arquivo
+  materia_id?: string
+  content_preview: string     // Primeiros ~200 chars do conteúdo
+  vector: number[]            // Array de embeddings gerado pela API do Gemini
+}
+
+// ------------------------------------------------------------
+// Jobs (rastreamento de Functions assíncronas)
+// ------------------------------------------------------------
+
+export interface Job extends AppwriteDocument {
+  user_id: string
+  tipo: 'extrair-questoes-pdf' | 'analisar-clube-revista' | 'gerar-flashcards-lote'
+    | 'corrigir-discursiva' | 'analisar-desempenho-simulado' | 'recalcular-revisoes'
+    | 'gerar-plano-semanal' | 'gerar-embedding' | 'responder-copiloto'
+  status: 'pendente' | 'processando' | 'concluido' | 'erro'
+  progresso: number           // 0-100
+  resultado?: Record<string, unknown>
+  erro?: string
+  iniciado_em?: string
+  finalizado_em?: string
+}
+
+// ------------------------------------------------------------
+// Preferências do Usuário
+// ------------------------------------------------------------
+
+export interface UserPreferences {
+  tema: 'dark' | 'light'
+  sidebar_colapsada: boolean
+  preferencias?: Record<string, unknown>
 }

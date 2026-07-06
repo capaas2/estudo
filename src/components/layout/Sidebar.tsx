@@ -1,15 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useAuth } from '@/contexts/AuthContext'
+import { usePathname, useRouter } from 'next/navigation'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAppStore } from '@/stores/useAppStore'
+import { account } from '@/lib/appwrite/config'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, Calendar, GraduationCap, BookOpen, Brain,
-  RotateCcw, Layers, Database, ClipboardList, BarChart3, FolderOpen,
-  Settings, LogOut, User, ChevronLeft, ChevronRight, Search,
-  Star, Sparkles
+  LayoutDashboard, GraduationCap, RotateCcw, Layers, Database,
+  ClipboardList, BarChart3, FolderOpen, Settings, LogOut, User,
+  ChevronLeft, ChevronRight, Search, Sparkles,
 } from 'lucide-react'
 
 const navSections = [
@@ -17,17 +17,15 @@ const navSections = [
     label: 'Principal',
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/calendario', label: 'Calendário', icon: Calendar },
       { href: '/periodos', label: 'Períodos', icon: GraduationCap },
     ]
   },
   {
     label: 'Estudo',
     items: [
-      { href: '/materias', label: 'Matérias', icon: BookOpen },
-      { href: '/tutoria', label: 'Tutoria', icon: Brain },
       { href: '/revisoes', label: 'Revisões', icon: RotateCcw },
       { href: '/flashcards', label: 'Flashcards', icon: Layers },
+      { href: '/copiloto', label: 'Copiloto IA', icon: Sparkles },
     ]
   },
   {
@@ -35,7 +33,7 @@ const navSections = [
     items: [
       { href: '/questoes', label: 'Banco de Questões', icon: Database },
       { href: '/simulados', label: 'Simulados', icon: ClipboardList },
-      { href: '/analytics', label: 'Analytics IA', icon: BarChart3 },
+      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
     ]
   },
   {
@@ -49,10 +47,24 @@ const navSections = [
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { user, logout } = useAuth()
-  const { sidebarCollapsed, toggleSidebar, setCommandPaletteOpen } = useAppStore()
+  const router = useRouter()
+  const { data: user } = useCurrentUser()
+  const { sidebarCollapsed, toggleSidebar } = useAppStore()
 
-  const nomeUsuario = (user?.user_metadata as Record<string, string>)?.nome || user?.email?.split('@')[0] || 'Usuário'
+  const nomeUsuario = user?.name || user?.email?.split('@')[0] || 'Usuário'
+
+  async function handleLogout() {
+    try {
+      await account.deleteSession('current')
+      await fetch('/api/auth/session', { method: 'DELETE' })
+      router.push('/login')
+    } catch (err) {
+      console.error('Erro ao fazer logout:', err)
+      // Mesmo com erro, limpa o cookie e redireciona
+      await fetch('/api/auth/session', { method: 'DELETE' })
+      router.push('/login')
+    }
+  }
 
   return (
     <motion.aside
@@ -113,7 +125,6 @@ export default function Sidebar() {
       {/* Search */}
       <div className="px-3 mt-3">
         <button
-          onClick={() => setCommandPaletteOpen(true)}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] text-slate-500 hover:text-slate-400 transition-all text-sm ${sidebarCollapsed ? 'justify-center' : ''}`}
         >
           <Search size={15} />
@@ -186,14 +197,14 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-3 py-3 border-t border-white/[0.06] space-y-2">
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all text-sm font-medium ${sidebarCollapsed ? 'justify-center' : ''}`}
         >
           <LogOut size={16} />
           {!sidebarCollapsed && <span>Sair</span>}
         </button>
         {!sidebarCollapsed && (
-          <p className="text-[0.6rem] text-slate-600 text-center">StudyPro v3.0</p>
+          <p className="text-[0.6rem] text-slate-600 text-center">StudyPro v4.0</p>
         )}
       </div>
     </motion.aside>

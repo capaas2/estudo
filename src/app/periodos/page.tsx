@@ -1,153 +1,186 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listPeriods, createPeriod, deletePeriod } from '@/services/database/periods'
 import AppShell from '@/components/layout/AppShell'
-import { motion } from 'framer-motion'
+import EmptyState from '@/components/shared/EmptyState'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
+import Modal from '@/components/shared/Modal'
+import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { GraduationCap, ChevronRight, Plus } from 'lucide-react'
+import { useState } from 'react'
+import {
+  GraduationCap, Plus, ChevronRight, Trash2, BookOpen,
+  CheckCircle, Clock, Circle,
+} from 'lucide-react'
+import type { Period } from '@/types/database'
 
-const PERIOD_COLORS = [
-  'from-cyan-500 to-blue-600', 'from-violet-500 to-purple-600', 'from-emerald-500 to-teal-600',
-  'from-amber-500 to-orange-600', 'from-rose-500 to-pink-600', 'from-indigo-500 to-blue-600',
-  'from-teal-500 to-cyan-600', 'from-fuchsia-500 to-purple-600', 'from-lime-500 to-green-600',
-  'from-orange-500 to-red-600', 'from-sky-500 to-indigo-600', 'from-pink-500 to-rose-600',
-]
-
-const PERIOD_SUBJECTS: Record<number, string[]> = {
-  1: ['Anatomia Humana I', 'Genética e Embriologia', 'HAC I', 'Histologia', 'Homeostasia I', 'Homeostasia II', 'PISEC I'],
-  2: ['HAC II', 'Metabolismo I', 'Metabolismo II', 'Neuroanatomia', 'PISEC II', 'Sistema Nervoso'],
-  3: ['Anatomia Humana II', 'HAC III', 'Histologia II', 'Interação com Meio Ambiente', 'PISEC III', 'Sist. Circulatório', 'Sist. Locomotor'],
-  4: ['HAC IV', 'Optativa I', 'Patologia Geral', 'PISEC IV', 'Sist. Digestório', 'Sist. Respiratório', 'Sist. Urinário'],
-  5: ['Anat. Patológica I', 'Dermatologia', 'Farmacologia Básica', 'HAC V', 'Radiologia', 'Saúde Mental', 'Sist. Hemolinfopoiético'],
-  6: ['Anat. Patológica II', 'Farmacologia Clínica', 'HAC VI', 'PISEC VI', 'Sist. Endócrino', 'Sist. Reprodutor', 'Técnica Cirúrgica'],
-  7: ['Infectologia', 'HAC VII', 'Pediatria I', 'PISEC VII', 'Saúde Coletiva I', 'Saúde da Mulher I'],
-  8: ['Clínica Médica I', 'HAC VIII', 'Ortopedia', 'Pediatria II', 'PISEC VIII', 'Saúde da Mulher II'],
-  9: ['Internato - Clínica Médica'],
-  10: ['Internato - Cirurgia Geral'],
-  11: ['Internato - Pediatria', 'Internato - Ginecologia e Obstetrícia'],
-  12: ['Internato - Urgência e Emergência', 'Internato - Saúde Coletiva'],
-}
-
-interface PeriodData {
-  numero: number; nome: string; status: string; progresso: number; meta_horas_semana: number
+const statusConfig: Record<Period['status'], { label: string; color: string; icon: typeof CheckCircle }> = {
+  nao_iniciado: { label: 'Não Iniciado', color: 'slate', icon: Circle },
+  em_andamento: { label: 'Em Andamento', color: 'cyan', icon: Clock },
+  concluido: { label: 'Concluído', color: 'emerald', icon: CheckCircle },
 }
 
 export default function PeriodosPage() {
-  const { user } = useAuth()
-  const [periods, setPeriods] = useState<PeriodData[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: user, isLoading: userLoading } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newNome, setNewNome] = useState('')
+  const [newNumero, setNewNumero] = useState(1)
 
-  useEffect(() => { carregar() }, [])
+  const { data: periods = [], isLoading } = useQuery({
+    queryKey: ['periods', user?.$id],
+    queryFn: () => listPeriods(user!.$id),
+    enabled: !!user,
+  })
 
-  async function carregar() {
-    setLoading(true)
-    const { data } = await supabase.from('periods').select('*, subjects_workspace(progresso)').order('numero')
-    if (data && data.length > 0) {
-      const periodsWithProgress = data.map((p: any) => {
-        let computedProgress = p.progresso;
-        if (p.subjects_workspace && p.subjects_workspace.length > 0) {
-          const sum = p.subjects_workspace.reduce((acc: number, sw: any) => acc + (sw.progresso || 0), 0)
-          computedProgress = Math.round(sum / p.subjects_workspace.length)
-        } else if (p.subjects_workspace && p.subjects_workspace.length === 0) {
-          computedProgress = 0;
-        }
-        return { ...p, progresso: computedProgress }
-      })
-      setPeriods(periodsWithProgress)
-    } else {
-      setPeriods(Array.from({ length: 12 }, (_, i) => ({
-        numero: i + 1, nome: `${i + 1}º Período`, status: 'nao_iniciado', progresso: 0, meta_horas_semana: 20
-      })))
-    }
-    setLoading(false)
-  }
+  const createMutation = useMutation({
+    mutationFn: () => createPeriod(user!.$id, {
+      numero: newNumero,
+      nome: newNome || `${newNumero}º Período`,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['periods'] })
+      setShowCreateModal(false)
+      setNewNome('')
+      setNewNumero(periods.length + 1)
+    },
+  })
 
-  const statusMap = {
-    nao_iniciado: { label: 'Não iniciado', dot: 'bg-slate-500' },
-    em_andamento: { label: 'Em andamento', dot: 'bg-amber-400' },
-    concluido: { label: 'Concluído', dot: 'bg-emerald-400' },
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deletePeriod(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['periods'] }),
+  })
+
+  if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
 
   return (
     <AppShell>
       <div className="page-header">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Períodos Acadêmicos</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Organize seu progresso do 1º ao 12º período de Medicina</p>
+          <h1 className="page-title">Períodos</h1>
+          <p className="page-subtitle">{periods.length} período{periods.length !== 1 ? 's' : ''} cadastrado{periods.length !== 1 ? 's' : ''}</p>
         </div>
+        <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-premium text-xs">
+          <Plus size={14} />
+          Novo Período
+        </button>
       </div>
-
       <div className="page-body">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-3 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
-          </div>
+        {periods.length === 0 ? (
+          <EmptyState
+            icon={GraduationCap}
+            title="Nenhum período encontrado"
+            description="Complete o onboarding ou crie seu primeiro período."
+            action={{ label: 'Criar Período', onClick: () => setShowCreateModal(true) }}
+          />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {periods.map((p, i) => {
-              const st = statusMap[p.status as keyof typeof statusMap] || statusMap.nao_iniciado
-              const subjects = PERIOD_SUBJECTS[p.numero] || []
-              return (
-                <motion.div
-                  key={p.numero}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                >
-                  <Link
-                    href={`/periodos/${p.numero}`}
-                    className="glass-card group block overflow-hidden hover:border-white/[0.15] transition-all duration-300 hover:-translate-y-1"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <AnimatePresence>
+              {periods.map((period, i) => {
+                const config = statusConfig[period.status]
+                return (
+                  <motion.div
+                    key={period.$id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
                   >
-                    <div className={`h-28 bg-gradient-to-br ${PERIOD_COLORS[i % 12]} relative overflow-hidden`}>
-                      <div className="absolute inset-0 bg-black/20" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-4xl font-black text-white/80">{p.numero}º</span>
-                      </div>
-                      <div className="absolute top-3 right-3">
-                        <div className={`w-2.5 h-2.5 rounded-full ${st.dot} ring-2 ring-black/20`} />
-                      </div>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-bold text-slate-200">{p.nome}</h3>
-                        <ChevronRight size={16} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
-                      </div>
-                      <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500">{st.label}</p>
-                      
-                      <div className="space-y-1">
-                        {subjects.slice(0, 3).map((s, j) => (
-                          <div key={j} className="flex items-center gap-2">
-                            <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${PERIOD_COLORS[i % 12]}`} />
-                            <span className="text-xs text-slate-400 truncate">{s}</span>
+                    <Link
+                      href={`/periodos/${period.$id}`}
+                      className="glass-card-hover p-5 block group"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-500/10 flex items-center justify-center">
+                            <GraduationCap size={22} className="text-cyan-400" />
                           </div>
-                        ))}
-                        {subjects.length > 3 && (
-                          <p className="text-[0.6rem] text-slate-600 pl-3.5">+{subjects.length - 3} matérias</p>
-                        )}
+                          <div>
+                            <h3 className="text-base font-bold text-slate-100">{period.nome}</h3>
+                            <span className={`badge-sm badge-${config.color} mt-1`}>
+                              <config.icon size={10} className="mr-1" />
+                              {config.label}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
+                            className="btn-icon text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <ChevronRight size={16} className="text-slate-600 group-hover:text-cyan-400 transition-colors" />
+                        </div>
                       </div>
 
-                      <div className="pt-2">
+                      <div className="mb-3">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[0.6rem] text-slate-600">Progresso</span>
-                          <span className="text-[0.6rem] font-semibold text-slate-400">{p.progresso}%</span>
+                          <span className="text-xs text-slate-500">Progresso</span>
+                          <span className="text-xs font-semibold text-cyan-400">{period.progresso || 0}%</span>
                         </div>
-                        <div className="w-full h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full bg-gradient-to-r ${PERIOD_COLORS[i % 12]} transition-all duration-500`}
-                            style={{ width: `${p.progresso}%` }}
-                          />
+                        <div className="progress-bar">
+                          <div className="progress-bar-fill" style={{ width: `${period.progresso || 0}%` }} />
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              )
-            })}
+
+                      {period.meta_horas_semana && period.meta_horas_semana > 0 && (
+                        <p className="text-[0.65rem] text-slate-600">
+                          Meta: {period.meta_horas_semana}h/semana
+                        </p>
+                      )}
+                    </Link>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>
+
+      {/* Create Modal */}
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Novo Período"
+        footer={
+          <>
+            <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Cancelar</button>
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending}
+              className="btn-premium text-xs"
+            >
+              {createMutation.isPending ? 'Criando...' : 'Criar Período'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Número</label>
+            <input
+              type="number"
+              value={newNumero}
+              onChange={e => setNewNumero(parseInt(e.target.value) || 1)}
+              min={1}
+              max={12}
+              className="form-input"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Nome (opcional)</label>
+            <input
+              type="text"
+              value={newNome}
+              onChange={e => setNewNome(e.target.value)}
+              placeholder={`${newNumero}º Período`}
+              className="form-input"
+            />
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   )
 }

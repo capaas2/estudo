@@ -1,339 +1,228 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { 
-  RefreshCw, 
-  Calendar as CalendarIcon, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
-  Plus,
-  Brain,
-  History,
-  TrendingUp,
-  MoreVertical,
-  Zap
-} from 'lucide-react'
+import { useState } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listReviews, createReview, updateReview, deleteReview } from '@/services/database/reviews'
+import Modal from '@/components/shared/Modal'
+import EmptyState from '@/components/shared/EmptyState'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { format, addDays, isPast, isToday } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-
-interface Review {
-  id: string
-  titulo: string
-  tipo: 'manual' | 'automatica' | 'erro_simulado'
-  status: 'pendente' | 'concluida' | 'adiada'
-  data_revisao: string
-  proxima_revisao: string | null
-  intervalo_dias: number
-  nivel_confianca: number
-}
+import {
+  RotateCcw, Plus, Check, Clock, AlertCircle, ChevronRight, Trash2, Calendar,
+} from 'lucide-react'
+import type { Review } from '@/types/database'
 
 interface ReviewsTabProps {
   materiaId: string
-  workspaceId: string
-  mainColor: string
 }
 
-export default function ReviewsTab({ materiaId, workspaceId, mainColor }: ReviewsTabProps) {
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isAdding, setIsAdding] = useState(false)
-  const [newReviewTitle, setNewReviewTitle] = useState('')
+export default function ReviewsTab({ materiaId }: ReviewsTabProps) {
+  const { data: user } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+  const [filter, setFilter] = useState<'todas' | 'pendente' | 'concluida'>('todas')
 
-  useEffect(() => {
-    fetchReviews()
-  }, [materiaId])
+  const { data: reviews = [], isLoading } = useQuery({
+    queryKey: ['reviews', user?.$id, materiaId],
+    queryFn: () => listReviews(user!.$id, materiaId),
+    enabled: !!user,
+  })
 
-  async function fetchReviews() {
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('materia_id', materiaId)
-        .order('data_revisao', { ascending: true })
+  const createMutation = useMutation({
+    mutationFn: () => createReview(user!.$id, {
+      titulo: newTitle,
+      materia_id: materiaId,
+      data_revisao: newDate,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reviews'] })
+      setShowCreateModal(false)
+      setNewTitle('')
+    },
+  })
 
-      if (error) throw error
-      setReviews(data || [])
-    } catch (error) {
-      console.error('Erro ao buscar revisões:', error)
-    } finally {
-      setLoading(false)
-    }
+  const completeMutation = useMutation({
+    mutationFn: (reviewId: string) => updateReview(reviewId, {
+      status: 'concluida',
+      proxima_revisao: getNextReviewDate(1).toISOString().split('T')[0],
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (reviewId: string) => deleteReview(reviewId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+  })
+
+  function getNextReviewDate(intervalDays: number): Date {
+    const d = new Date()
+    d.setDate(d.getDate() + intervalDays)
+    return d
   }
 
-  async function addReview() {
-    if (!newReviewTitle.trim()) return
-    try {
-      const user = (await supabase.auth.getUser()).data.user
-      const { data, error } = await supabase
-        .from('reviews')
-        .insert({
-          user_id: user?.id,
-          materia_id: materiaId,
-          titulo: newReviewTitle,
-          data_revisao: new Date().toISOString().split('T')[0],
-          status: 'pendente',
-          intervalo_dias: 1,
-          nivel_confianca: 0
-        })
-        .select()
-        .single()
+  const filtered = reviews.filter(r => filter === 'todas' || r.status === filter)
+  const today = new Date().toISOString().split('T')[0]
+  const pendentes = reviews.filter(r => r.status === 'pendente')
+  const atrasadas = pendentes.filter(r => r.data_revisao < today)
+  const paraHoje = pendentes.filter(r => r.data_revisao === today)
+  const futuras = pendentes.filter(r => r.data_revisao > today)
 
-      if (error) throw error
-      setReviews([...reviews, data])
-      setNewReviewTitle('')
-      setIsAdding(false)
-    } catch (error) {
-      console.error('Erro ao adicionar revisão:', error)
-    }
+  const statusConfig: Record<Review['status'], { icon: typeof Check; color: string; label: string }> = {
+    pendente: { icon: Clock, color: 'amber', label: 'Pendente' },
+    concluida: { icon: Check, color: 'emerald', label: 'Concluída' },
+    adiada: { icon: AlertCircle, color: 'rose', label: 'Adiada' },
   }
 
-  async function completeReview(review: Review, quality: number) {
-    // Algoritmo SM-2 simplificado
-    // quality: 0 (esqueci) a 5 (muito fácil)
-    let nextInterval = 1
-    if (quality >= 3) {
-       if (review.intervalo_dias === 1) nextInterval = 3
-       else if (review.intervalo_dias === 3) nextInterval = 7
-       else nextInterval = Math.round(review.intervalo_dias * (1.5 + quality * 0.1))
-    } else {
-       nextInterval = 1
-    }
-
-    const proximaData = addDays(new Date(), nextInterval).toISOString().split('T')[0]
-
-    try {
-      const { error } = await supabase
-        .from('reviews')
-        .update({
-          status: 'concluida',
-          nivel_confianca: quality,
-          proxima_revisao: proximaData,
-          intervalo_dias: nextInterval,
-          data_revisao: new Date().toISOString().split('T')[0]
-        })
-        .eq('id', review.id)
-
-      if (error) throw error
-      
-      // Se a revisão foi bem sucedida, podemos criar a próxima pendente automaticamente ou apenas atualizar o estado
-      // Aqui vou apenas atualizar o estado local para refletir a mudança
-      setReviews(reviews.map(r => r.id === review.id ? { 
-        ...r, 
-        status: 'concluida', 
-        nivel_confianca: quality, 
-        proxima_revisao: proximaData,
-        intervalo_dias: nextInterval
-      } : r))
-    } catch (error) {
-      console.error('Erro ao completar revisão:', error)
-    }
-  }
-
-  const pendingReviews = reviews.filter(r => r.status === 'pendente' || isPast(new Date(r.data_revisao)))
-  const upcomingReviews = reviews.filter(r => r.status === 'concluida' && r.proxima_revisao && !isPast(new Date(r.proxima_revisao)))
+  if (isLoading) return <PageLoading />
 
   return (
-    <div className="h-full flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
-      {/* Coluna Principal: Próximas Revisões */}
-      <div className="flex flex-col gap-6 lg:col-span-8">
-        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-           <div>
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Brain size={24} style={{ color: mainColor }} />
-                 Ciclo de Revisões
-              </h3>
-              <p className="text-sm text-slate-500 mt-1">Algoritmo de Repetição Espaçada ativo.</p>
-           </div>
-           <button 
-             onClick={() => setIsAdding(true)}
-             className="w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all flex items-center justify-center gap-2"
-           >
-             <Plus size={16} /> Nova Revisão
-           </button>
-        </header>
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="stat-card">
+          <div className="flex items-center gap-2 mb-1">
+            <AlertCircle size={14} className="text-rose-400" />
+            <span className="text-xs text-slate-400">Atrasadas</span>
+          </div>
+          <p className="text-xl font-bold text-rose-400">{atrasadas.length}</p>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center gap-2 mb-1">
+            <Clock size={14} className="text-amber-400" />
+            <span className="text-xs text-slate-400">Hoje</span>
+          </div>
+          <p className="text-xl font-bold text-amber-400">{paraHoje.length}</p>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center gap-2 mb-1">
+            <Calendar size={14} className="text-cyan-400" />
+            <span className="text-xs text-slate-400">Futuras</span>
+          </div>
+          <p className="text-xl font-bold text-cyan-400">{futuras.length}</p>
+        </div>
+      </div>
 
-        <AnimatePresence>
-          {isAdding && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="glass-card p-6 border-dashed"
-              style={{ borderColor: `${mainColor}40` }}
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {(['todas', 'pendente', 'concluida'] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={filter === f ? 'tab-item-active' : 'tab-item'}
             >
-              <h4 className="text-sm font-bold text-slate-200 mb-4 uppercase tracking-widest">O que você quer revisar?</h4>
-               <div className="flex flex-col sm:flex-row gap-4">
-                <input 
-                  autoFocus
-                  type="text" 
-                  placeholder="Ex: Ciclo de Krebs..."
-                  value={newReviewTitle}
-                  onChange={(e) => setNewReviewTitle(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-white/20 transition-all text-white"
-                />
-                <div className="flex gap-2">
-                  <button 
-                    onClick={addReview}
-                    className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl font-bold text-sm text-white shadow-lg transition-all"
-                    style={{ backgroundColor: mainColor }}
-                  >
-                    Agendar
-                  </button>
-                  <button 
-                    onClick={() => setIsAdding(false)}
-                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl font-bold text-sm text-slate-500 hover:text-slate-300 transition-all"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <section className="space-y-4">
-           <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
-              <AlertCircle size={14} className="text-amber-500" />
-              Pendente ou Atrasado ({pendingReviews.length})
-           </div>
-           
-           {pendingReviews.length === 0 ? (
-             <div className="glass-card p-10 flex flex-col items-center justify-center text-slate-600 gap-3 border-dashed">
-                <CheckCircle2 size={40} className="text-emerald-500/20" />
-                <p className="italic">Tudo em dia! Nenhuma revisão pendente para hoje.</p>
-             </div>
-           ) : (
-             <div className="space-y-3">
-               {pendingReviews.map(review => (
-                 <div key={review.id} className="glass-card p-6 flex items-center justify-between group border-white/[0.05] hover:border-white/20 transition-all">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform flex-shrink-0">
-                          <RefreshCw size={20} />
-                       </div>
-                       <div className="min-w-0">
-                          <h5 className="font-bold text-white group-hover:text-cyan-400 transition-colors truncate">{review.titulo}</h5>
-                          <div className="flex items-center gap-3 mt-1">
-                             <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-500 uppercase font-bold">
-                                {review.tipo}
-                             </span>
-                             <span className="text-[10px] flex items-center gap-1 text-amber-500 font-bold">
-                                <Clock size={10} /> 
-                                {isToday(new Date(review.data_revisao)) ? 'Hoje' : format(new Date(review.data_revisao), "dd/MM", { locale: ptBR })}
-                             </span>
-                          </div>
-                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <span className="text-[10px] font-bold text-slate-500 mr-2 uppercase">Como foi o seu domínio?</span>
-                       {[1, 2, 3, 4, 5].map(q => (
-                         <button 
-                           key={q}
-                           onClick={() => completeReview(review, q)}
-                           className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs font-bold hover:bg-white/20 transition-all hover:scale-110"
-                           style={{ color: q > 3 ? '#10b981' : q > 2 ? '#f59e0b' : '#ef4444' }}
-                         >
-                           {q}
-                         </button>
-                       ))}
-                    </div>
-                 </div>
-               ))}
-             </div>
-           )}
-        </section>
-
-        <section className="space-y-4">
-           <div className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
-              <CalendarIcon size={14} />
-              Próximas revisões ({upcomingReviews.length})
-           </div>
-           
-           <div className="grid grid-cols-2 gap-4">
-              {upcomingReviews.map(review => (
-                <div key={review.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all">
-                   <div className="flex justify-between items-start mb-3">
-                      <h6 className="text-sm font-bold text-slate-300 truncate w-40">{review.titulo}</h6>
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">
-                         Nível {review.nivel_confianca}
-                      </span>
-                   </div>
-                   <div className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-2 text-slate-500 font-bold">
-                         <CalendarIcon size={12} />
-                         {format(new Date(review.proxima_revisao!), "dd 'de' MMMM", { locale: ptBR })}
-                      </div>
-                      <div className="text-emerald-500 font-bold">
-                         Em {review.intervalo_dias} dias
-                      </div>
-                   </div>
-                </div>
-              ))}
-           </div>
-        </section>
+              {f === 'todas' ? 'Todas' : f === 'pendente' ? 'Pendentes' : 'Concluídas'}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setShowCreateModal(true)} className="btn-premium text-xs">
+          <Plus size={14} />
+          Nova Revisão
+        </button>
       </div>
 
-      {/* Coluna Lateral: Estatísticas e Insights */}
-      <div className="lg:col-span-4 space-y-6">
-         <div className="glass-card p-6 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/20">
-            <h4 className="font-bold text-white mb-6 flex items-center gap-2">
-               <TrendingUp size={18} className="text-cyan-400" />
-               Performance de Retenção
-            </h4>
-            
-            <div className="space-y-6">
-                <div className="flex items-end justify-around h-24 gap-2">
-                   {[0, 0, 0, 0, 0, 0, 0].map((h, i) => (
-                     <div key={i} className="flex-1 bg-white/5 rounded-t-lg relative group">
-                        <motion.div 
-                          initial={{ height: 0 }}
-                          animate={{ height: `${h}%` }}
-                          className="absolute bottom-0 left-0 right-0 rounded-t-lg"
-                          style={{ backgroundColor: mainColor, opacity: 0.3 + (h/200) }}
-                        />
-                     </div>
-                   ))}
-                </div>
-               
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Taxa de Acerto</span>
-                      <span className="text-xl font-black text-white">0%</span>
-                   </div>
-                   <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Dificuldade Média</span>
-                      <span className="text-xl font-black text-slate-500">---</span>
-                   </div>
-                </div>
-            </div>
-         </div>
+      {/* List */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={RotateCcw}
+          title="Nenhuma revisão"
+          description="Revisões são criadas automaticamente a partir de erros em simulados, ou manualmente."
+          action={{ label: 'Criar Revisão', onClick: () => setShowCreateModal(true) }}
+        />
+      ) : (
+        <div className="space-y-2">
+          <AnimatePresence>
+            {filtered.map((review, i) => {
+              const config = statusConfig[review.status]
+              const isOverdue = review.status === 'pendente' && review.data_revisao < today
+              return (
+                <motion.div
+                  key={review.$id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ delay: i * 0.03 }}
+                  className={`glass-card p-4 flex items-center gap-4 ${isOverdue ? 'border-rose-500/20' : ''}`}
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-${config.color}-500/10 text-${config.color}-400`}>
+                    <config.icon size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-200 truncate">{review.titulo}</p>
+                    <p className={`text-xs ${isOverdue ? 'text-rose-400' : 'text-slate-500'}`}>
+                      {isOverdue ? `Atrasada desde ${new Date(review.data_revisao).toLocaleDateString('pt-BR')}` :
+                        `Agendada para ${new Date(review.data_revisao).toLocaleDateString('pt-BR')}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {review.status === 'pendente' && (
+                      <button
+                        onClick={() => completeMutation.mutate(review.$id)}
+                        className="btn-icon text-emerald-400 hover:bg-emerald-500/10"
+                        title="Marcar como concluída"
+                      >
+                        <Check size={16} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteMutation.mutate(review.$id)}
+                      className="btn-icon text-slate-500 hover:text-red-400"
+                      title="Excluir"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </AnimatePresence>
+        </div>
+      )}
 
-         <div className="glass-card p-6">
-            <h4 className="font-bold text-white mb-4 flex items-center gap-2">
-               <History size={18} className="text-slate-400" />
-               Histórico Recente
-            </h4>
-             <div className="space-y-4">
-                <p className="text-xs text-slate-500 italic">Nenhum histórico disponível.</p>
-             </div>
-         </div>
-
-         <div className="glass-card p-6 border-dashed bg-white/[0.01]">
-            <div className="flex items-center gap-3 mb-4">
-               <div className="p-2 rounded-lg bg-amber-500/20 text-amber-500">
-                  <Zap size={18} />
-               </div>
-               <h4 className="font-bold text-white text-sm">Dica Pro</h4>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed italic">
-              "Tente revisar conteúdos difíceis logo pela manhã. A repetição espaçada funciona melhor quando o cérebro está descansado."
-            </p>
-         </div>
-      </div>
+      {/* Create Modal */}
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Nova Revisão"
+        footer={
+          <>
+            <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Cancelar</button>
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={!newTitle.trim() || createMutation.isPending}
+              className="btn-premium text-xs"
+            >
+              Criar Revisão
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Título</label>
+            <input
+              type="text"
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              placeholder="O que você precisa revisar?"
+              className="form-input"
+              autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Data da Revisão</label>
+            <input
+              type="date"
+              value={newDate}
+              onChange={e => setNewDate(e.target.value)}
+              className="form-input"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

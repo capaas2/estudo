@@ -1,379 +1,350 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
-import Link from '@tiptap/extension-link'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Typography from '@tiptap/extension-typography'
-import { supabase } from '@/lib/supabase'
-import { 
-  Plus, 
-  Search, 
-  FileText, 
-  Star, 
-  Trash2, 
-  MoreVertical,
-  Save,
-  Clock,
-  ChevronRight,
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Heading1,
-  Heading2,
-  Code,
-  Quote,
-  Undo,
-  Redo
-} from 'lucide-react'
+import { useState } from 'react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listNotes, createNote, updateNote, deleteNote } from '@/services/database/notes'
+import { createFlashcard } from '@/services/database/flashcards'
+import Modal from '@/components/shared/Modal'
+import EmptyState from '@/components/shared/EmptyState'
+import { PageLoading } from '@/components/shared/LoadingSpinner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-
-interface Note {
-  id: string
-  titulo: string
-  conteudo: any
-  is_favorita: boolean
-  atualizado_em: string
-  icone: string
-}
+import {
+  FileText, Plus, Search, Trash2, Star, StarOff,
+  Calendar, BookOpen, Sparkles, Layers, Wand2, Loader2,
+  CheckCircle,
+} from 'lucide-react'
+import type { Note } from '@/types/database'
 
 interface NotesTabProps {
   materiaId: string
-  workspaceId: string
-  mainColor: string
 }
 
-export default function NotesTab({ materiaId, workspaceId, mainColor }: NotesTabProps) {
-  const [notes, setNotes] = useState<Note[]>([])
-  const [activeNote, setActiveNote] = useState<Note | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+export default function NotesTab({ materiaId }: NotesTabProps) {
+  const { data: user } = useCurrentUser()
+  const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+  const [newTitle, setNewTitle] = useState('')
+  const [newTipo, setNewTipo] = useState<Note['tipo']>('comum')
+  const [newConteudo, setNewConteudo] = useState('')
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({
-        placeholder: 'Comece a escrever ou digite "/" para comandos...',
-      }),
-      Image,
-      Link,
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      Typography,
-    ],
-    content: '',
-    immediatelyRender: false,
-    onUpdate: ({ editor }) => {
-      // Auto-save logic could go here (throttled)
+  // IA generation state
+  const [generatingFlashcards, setGeneratingFlashcards] = useState(false)
+  const [generatingMnemonics, setGeneratingMnemonics] = useState(false)
+  const [flashcardsGenerated, setFlashcardsGenerated] = useState(0)
+  const [mnemonicsResult, setMnemonicsResult] = useState<{
+    acronimo?: { titulo: string; explicacao: string }
+    historia?: { titulo: string; texto: string }
+    visual?: { titulo: string; descricao: string }
+  } | null>(null)
+  const [showMnemonicsModal, setShowMnemonicsModal] = useState(false)
+
+  const { data: notes = [], isLoading } = useQuery({
+    queryKey: ['notes', user?.$id, materiaId],
+    queryFn: () => listNotes(user!.$id, materiaId),
+    enabled: !!user,
+  })
+
+  const createMutation = useMutation({
+    mutationFn: () => createNote(user!.$id, {
+      titulo: newTitle,
+      materia_id: materiaId,
+      tipo: newTipo,
+      conteudo: newConteudo ? { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: newConteudo }] }] } : undefined,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] })
+      setShowCreateModal(false)
+      setNewTitle('')
+      setNewTipo('comum')
+      setNewConteudo('')
     },
   })
 
-  useEffect(() => {
-    fetchNotes()
-  }, [materiaId])
+  const deleteMutation = useMutation({
+    mutationFn: (noteId: string) => deleteNote(noteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] })
+      setSelectedNote(null)
+    },
+  })
 
-  async function fetchNotes() {
-    setLoading(true)
+  const toggleFav = useMutation({
+    mutationFn: (note: Note) => updateNote(note.$id, { is_favorita: !note.is_favorita }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }),
+  })
+
+  async function handleGenerateFlashcards(note: Note) {
+    if (!user) return
+    setGeneratingFlashcards(true)
+    setFlashcardsGenerated(0)
+
     try {
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('materia_id', materiaId)
-        .order('atualizado_em', { ascending: false })
+      const text = `${note.titulo}\n${typeof note.conteudo === 'string' ? note.conteudo : JSON.stringify(note.conteudo || '')}`
 
-      if (error) throw error
-      setNotes(data || [])
-      if (data && data.length > 0 && !activeNote) {
-        selectNote(data[0])
-      }
-    } catch (error) {
-      console.error('Erro ao buscar notas:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+      const response = await fetch('/api/flashcards-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, count: 5 }),
+      })
 
-  function selectNote(note: Note) {
-    setActiveNote(note)
-    if (editor) {
-      editor.commands.setContent(note.conteudo || '')
-    }
-  }
-
-  async function createNote() {
-    try {
-      const newNote = {
-        materia_id: materiaId,
-        workspace_id: workspaceId,
-        titulo: 'Nova Nota',
-        conteudo: {},
-        icone: '📝',
-        user_id: (await supabase.auth.getUser()).data.user?.id
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .insert(newNote)
-        .select()
-        .single()
-
-      if (error) throw error
-      setNotes([data, ...notes])
-      selectNote(data)
-    } catch (error) {
-      console.error('Erro ao criar nota:', error)
-    }
-  }
-
-  async function saveNote() {
-    if (!activeNote || !editor) return
-    setSaving(true)
-    try {
-      const { error } = await supabase
-        .from('notes')
-        .update({
-          titulo: activeNote.titulo,
-          conteudo: editor.getJSON(),
-          atualizado_em: new Promise(resolve => resolve(new Date().toISOString()))
-        })
-        .eq('id', activeNote.id)
-
-      if (error) throw error
-      
-      // Update local state
-      setNotes(notes.map(n => n.id === activeNote.id ? { ...n, titulo: activeNote.titulo, atualizado_em: new Date().toISOString() } : n))
-    } catch (error) {
-      console.error('Erro ao salvar nota:', error)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function deleteNote(id: string) {
-    if (!confirm('Tem certeza que deseja excluir esta nota?')) return
-    try {
-      const { error } = await supabase.from('notes').delete().eq('id', id)
-      if (error) throw error
-      
-      const updatedNotes = notes.filter(n => n.id !== id)
-      setNotes(updatedNotes)
-      if (activeNote?.id === id) {
-        setActiveNote(updatedNotes.length > 0 ? updatedNotes[0] : null)
-        if (updatedNotes.length > 0) {
-          editor?.commands.setContent(updatedNotes[0].conteudo || '')
-        } else {
-          editor?.commands.setContent('')
+      const data = await response.json()
+      if (data.flashcards && Array.isArray(data.flashcards)) {
+        for (const fc of data.flashcards) {
+          await createFlashcard(user.$id, {
+            materia_id: materiaId,
+            deck: note.titulo,
+            frente: fc.frente,
+            verso: fc.verso,
+          })
+          setFlashcardsGenerated(prev => prev + 1)
         }
+        queryClient.invalidateQueries({ queryKey: ['flashcards'] })
       }
-    } catch (error) {
-      console.error('Erro ao excluir nota:', error)
+    } catch (err) {
+      console.error('Erro ao gerar flashcards:', err)
+    } finally {
+      setGeneratingFlashcards(false)
     }
   }
 
-  const filteredNotes = notes.filter(n => 
-    n.titulo.toLowerCase().includes(searchQuery.toLowerCase())
+  async function handleGenerateMnemonics(note: Note) {
+    setGeneratingMnemonics(true)
+    setMnemonicsResult(null)
+
+    try {
+      const response = await fetch('/api/mnemonicos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: note.titulo }),
+      })
+
+      const data = await response.json()
+      if (data.mnemonics) {
+        setMnemonicsResult(data.mnemonics)
+        setShowMnemonicsModal(true)
+      }
+    } catch (err) {
+      console.error('Erro ao gerar mnemônicos:', err)
+    } finally {
+      setGeneratingMnemonics(false)
+    }
+  }
+
+  const filtered = notes.filter(n =>
+    n.titulo.toLowerCase().includes(search.toLowerCase())
   )
 
+  const tipoLabel: Record<Note['tipo'], { label: string; color: string }> = {
+    'comum': { label: 'Nota', color: 'cyan' },
+    'resumo-ia': { label: 'Resumo IA', color: 'violet' },
+    'tutoria': { label: 'Tutoria', color: 'emerald' },
+  }
+
+  if (isLoading) return <PageLoading />
+
   return (
-    <div className="flex h-full gap-0 lg:gap-6 overflow-hidden relative">
-      {/* Listagem de Notas */}
-      <aside className={`
-        ${activeNote && 'hidden lg:flex'} 
-        w-full lg:w-80 flex flex-col gap-4
-      `}>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-lg font-bold text-white">Minhas Notas</h3>
-          <button 
-            onClick={createNote}
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition-all border border-white/10"
-          >
-            <Plus size={18} />
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar notas..." className="form-input pl-9 text-sm" />
+        </div>
+        <button onClick={() => setShowCreateModal(true)} className="btn-premium text-xs">
+          <Plus size={14} />
+          Nova Nota
+        </button>
+      </div>
+
+      {/* Notes Grid */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title={search ? 'Nenhuma nota encontrada' : 'Nenhuma nota ainda'}
+          description={search ? 'Tente outro termo de busca.' : 'Crie sua primeira nota para começar a organizar seus estudos.'}
+          action={!search ? { label: 'Criar Nota', onClick: () => setShowCreateModal(true) } : undefined}
+        />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <AnimatePresence>
+            {filtered.map((note, i) => (
+              <motion.div
+                key={note.$id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: i * 0.03 }}
+                className="glass-card-hover p-5 cursor-pointer group"
+                onClick={() => setSelectedNote(note)}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <span className={`badge-sm badge-${tipoLabel[note.tipo].color}`}>
+                    {tipoLabel[note.tipo].label}
+                  </span>
+                  <button onClick={e => { e.stopPropagation(); toggleFav.mutate(note) }} className="p-1 text-slate-600 hover:text-amber-400 transition-colors">
+                    {note.is_favorita ? <Star size={14} className="fill-amber-400 text-amber-400" /> : <StarOff size={14} />}
+                  </button>
+                </div>
+                <h3 className="text-sm font-semibold text-slate-200 mb-2 line-clamp-2">{note.titulo}</h3>
+                {note.tags && note.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {note.tags.slice(0, 3).map(tag => (
+                      <span key={tag} className="text-[0.6rem] px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-500">#{tag}</span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-[0.65rem] text-slate-600">
+                  <Calendar size={10} />
+                  {new Date(note.$updatedAt).toLocaleDateString('pt-BR')}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nova Nota" footer={
+        <>
+          <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Cancelar</button>
+          <button onClick={() => createMutation.mutate()} disabled={!newTitle.trim() || createMutation.isPending} className="btn-premium text-xs">
+            {createMutation.isPending ? 'Criando...' : 'Criar Nota'}
           </button>
-        </div>
-
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-          <input 
-            type="text" 
-            placeholder="Buscar nas notas..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:border-white/20 transition-all text-slate-300"
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-2">
-          {loading ? (
-            <div className="flex flex-col gap-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-20 rounded-2xl bg-white/[0.02] animate-pulse" />
+        </>
+      }>
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Título</label>
+            <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Título da nota" className="form-input" autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Tipo</label>
+            <div className="flex gap-2">
+              {(['comum', 'resumo-ia', 'tutoria'] as const).map(tipo => (
+                <button key={tipo} onClick={() => setNewTipo(tipo)} className={`chip ${newTipo === tipo ? 'selected' : ''}`}>
+                  {tipo === 'comum' && <FileText size={12} className="inline mr-1" />}
+                  {tipo === 'resumo-ia' && <Sparkles size={12} className="inline mr-1" />}
+                  {tipo === 'tutoria' && <BookOpen size={12} className="inline mr-1" />}
+                  {tipoLabel[tipo].label}
+                </button>
               ))}
             </div>
-          ) : filteredNotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-slate-600 italic text-sm">
-              Nenhuma nota encontrada.
-            </div>
-          ) : (
-            filteredNotes.map((note) => (
-              <div 
-                key={note.id}
-                onClick={() => selectNote(note)}
-                className={`p-4 rounded-2xl border transition-all cursor-pointer relative group ${
-                  activeNote?.id === note.id 
-                    ? 'bg-white/[0.05] border-white/20' 
-                    : 'bg-white/[0.02] border-white/5 hover:border-white/10'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl mt-0.5">{note.icone}</div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className={`text-sm font-bold truncate ${activeNote?.id === note.id ? 'text-white' : 'text-slate-400'}`}>
-                      {note.titulo}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Clock size={10} className="text-slate-600" />
-                      <span className="text-[10px] text-slate-500">
-                        {format(new Date(note.atualizado_em), "dd 'de' MMM", { locale: ptBR })}
-                      </span>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteNote(note.id)
-                    }}
-                    className="p-1.5 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
+          </div>
+          <div className="form-group">
+            <label className="form-label">Conteúdo</label>
+            <textarea value={newConteudo} onChange={e => setNewConteudo(e.target.value)} placeholder="Escreva o conteúdo da nota..." className="form-textarea" rows={6} />
+          </div>
         </div>
-      </aside>
+      </Modal>
 
-      {/* Editor Tiptap */}
-      <main className={`
-        ${!activeNote && 'hidden lg:flex'}
-        flex-1 lg:glass-card flex flex-col overflow-hidden bg-[#0a0e1a] lg:bg-transparent
-      `}>
-        {activeNote ? (
+      {/* Note Detail Modal */}
+      <Modal
+        open={!!selectedNote}
+        onClose={() => setSelectedNote(null)}
+        title={selectedNote?.titulo}
+        size="lg"
+        footer={
           <>
-            {/* Toolbar do Editor */}
-            <header className="px-4 lg:px-6 py-3 lg:py-4 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between bg-white/[0.01] gap-4">
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setActiveNote(null)}
-                  className="lg:hidden p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400"
-                >
-                  <ChevronRight size={20} className="rotate-180" />
-                </button>
-                <input 
-                  type="text" 
-                  value={activeNote.titulo}
-                  onChange={(e) => setActiveNote({ ...activeNote, titulo: e.target.value })}
-                  className="bg-transparent text-lg lg:text-xl font-bold text-white focus:outline-none border-b border-transparent focus:border-white/20 transition-all pb-1 flex-1 min-w-0"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 mr-2 border border-white/10">
-                  <button 
-                    onClick={() => editor?.chain().focus().toggleBold().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 transition-all ${editor?.isActive('bold') ? 'text-white bg-white/10' : 'text-slate-500'}`}
-                  >
-                    <Bold size={16} />
-                  </button>
-                  <button 
-                    onClick={() => editor?.chain().focus().toggleItalic().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 transition-all ${editor?.isActive('italic') ? 'text-white bg-white/10' : 'text-slate-500'}`}
-                  >
-                    <Italic size={16} />
-                  </button>
-                  <div className="w-px h-4 bg-white/10 mx-1" />
-                  <button 
-                    onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-                    className={`p-1.5 rounded hover:bg-white/10 transition-all ${editor?.isActive('heading', { level: 1 }) ? 'text-white bg-white/10' : 'text-slate-500'}`}
-                  >
-                    <Heading1 size={16} />
-                  </button>
-                  <button 
-                    onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                    className={`p-1.5 rounded hover:bg-white/10 transition-all ${editor?.isActive('bulletList') ? 'text-white bg-white/10' : 'text-slate-500'}`}
-                  >
-                    <List size={16} />
-                  </button>
-                </div>
-
-                <button 
-                  onClick={saveNote}
-                  disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all disabled:opacity-50"
-                  style={{ borderColor: `${mainColor}40` }}
-                >
-                  {saving ? (
-                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Save size={16} style={{ color: mainColor }} />
-                  )}
-                  {saving ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </header>
-
-            <div className="flex-1 overflow-y-auto p-6 lg:p-12 editor-container custom-scrollbar">
-              <EditorContent editor={editor} />
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-4">
-            <div className="w-20 h-20 rounded-full bg-white/[0.02] flex items-center justify-center border border-white/5">
-              <FileText size={40} />
-            </div>
-            <p className="italic">Selecione uma nota ou crie uma nova para começar.</p>
-            <button 
-              onClick={createNote}
-              className="px-6 py-3 rounded-2xl bg-white/5 border border-white/10 hover:border-white/20 text-white font-bold transition-all"
-            >
-              Criar Primeira Nota
+            <button onClick={() => selectedNote && deleteMutation.mutate(selectedNote.$id)} className="btn-danger text-xs">
+              <Trash2 size={14} /> Excluir
             </button>
+            <div className="flex-1" />
+            <button onClick={() => setSelectedNote(null)} className="btn-secondary text-xs">Fechar</button>
+          </>
+        }
+      >
+        {selectedNote && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className={`badge-sm badge-${tipoLabel[selectedNote.tipo].color}`}>
+                {tipoLabel[selectedNote.tipo].label}
+              </span>
+              <span className="text-xs text-slate-500">
+                {new Date(selectedNote.$updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+
+            {/* Content */}
+            <div className="min-h-[200px] bg-white/[0.02] rounded-xl p-4 border border-white/[0.04]">
+              {selectedNote.conteudo ? (
+                <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+                  {typeof selectedNote.conteudo === 'string' ? selectedNote.conteudo : JSON.stringify(selectedNote.conteudo)}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500 italic">Nota sem conteúdo de texto.</p>
+              )}
+            </div>
+
+            {/* IA Actions */}
+            <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+              <button
+                onClick={() => handleGenerateFlashcards(selectedNote)}
+                disabled={generatingFlashcards}
+                className="btn-secondary text-xs"
+              >
+                {generatingFlashcards ? (
+                  <><Loader2 size={12} className="animate-spin" /> Gerando ({flashcardsGenerated})...</>
+                ) : flashcardsGenerated > 0 ? (
+                  <><CheckCircle size={12} className="text-emerald-400" /> {flashcardsGenerated} Flashcards Criados</>
+                ) : (
+                  <><Layers size={12} /> Gerar Flashcards</>
+                )}
+              </button>
+              <button
+                onClick={() => handleGenerateMnemonics(selectedNote)}
+                disabled={generatingMnemonics}
+                className="btn-secondary text-xs"
+              >
+                {generatingMnemonics ? (
+                  <><Loader2 size={12} className="animate-spin" /> Gerando...</>
+                ) : (
+                  <><Wand2 size={12} /> Gerar Mnemônicos</>
+                )}
+              </button>
+            </div>
           </div>
         )}
-      </main>
+      </Modal>
 
-      <style jsx global>{`
-        .editor-container .tiptap {
-          outline: none;
-          color: #e2e8f0;
-          font-size: 1.1rem;
-          line-height: 1.8;
+      {/* Mnemonics Modal */}
+      <Modal
+        open={showMnemonicsModal}
+        onClose={() => setShowMnemonicsModal(false)}
+        title="Mnemônicos Gerados"
+        size="lg"
+        footer={
+          <button onClick={() => setShowMnemonicsModal(false)} className="btn-premium text-xs">Fechar</button>
         }
-        .editor-container .tiptap p.is-editor-empty:first-child::before {
-          color: #475569;
-          content: attr(data-placeholder);
-          float: left;
-          height: 0;
-          pointer-events: none;
-        }
-        .editor-container .tiptap h1 { font-size: 2.5rem; font-weight: 900; margin-bottom: 2rem; color: white; }
-        .editor-container .tiptap h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 1.5rem; color: #f1f5f9; margin-top: 2rem; }
-        .editor-container .tiptap ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        .editor-container .tiptap ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1.5rem; }
-        .editor-container .tiptap blockquote { border-left: 4px solid ${mainColor}; padding-left: 1.5rem; font-style: italic; color: #94a3b8; margin: 2rem 0; }
-        .editor-container .tiptap img { border-radius: 1rem; margin: 2rem 0; width: 100%; }
-        .editor-container .tiptap pre { background: #0f172a; padding: 1.5rem; border-radius: 1rem; margin: 2rem 0; border: 1px solid rgba(255,255,255,0.05); }
-      `}</style>
+      >
+        {mnemonicsResult && (
+          <div className="space-y-4">
+            {mnemonicsResult.acronimo && (
+              <div className="glass-card p-4">
+                <h4 className="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-2">🔤 Acrônimo</h4>
+                <p className="text-sm font-semibold text-slate-200 mb-1">{mnemonicsResult.acronimo.titulo}</p>
+                <p className="text-xs text-slate-400">{mnemonicsResult.acronimo.explicacao}</p>
+              </div>
+            )}
+            {mnemonicsResult.historia && (
+              <div className="glass-card p-4">
+                <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider mb-2">📖 História</h4>
+                <p className="text-sm font-semibold text-slate-200 mb-1">{mnemonicsResult.historia.titulo}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">{mnemonicsResult.historia.texto}</p>
+              </div>
+            )}
+            {mnemonicsResult.visual && (
+              <div className="glass-card p-4">
+                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">🎨 Associação Visual</h4>
+                <p className="text-sm font-semibold text-slate-200 mb-1">{mnemonicsResult.visual.titulo}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">{mnemonicsResult.visual.descricao}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

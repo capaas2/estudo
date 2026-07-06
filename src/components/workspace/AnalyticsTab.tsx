@@ -1,203 +1,76 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts'
-import { 
-  BarChart2, 
-  TrendingUp, 
-  Clock, 
-  Target, 
-  Calendar, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Activity,
-  Info
-} from 'lucide-react'
 import { motion } from 'framer-motion'
+import { BarChart3, TrendingUp, Target, Clock, Brain, PieChart } from 'lucide-react'
 
 interface AnalyticsTabProps {
   materiaId: string
-  workspaceId: string
-  mainColor: string
+  materiaNome: string
+  materiaCor: string
 }
 
-const studyData: any[] = []
-const performanceData: any[] = []
-const topicData: any[] = []
-
-export default function AnalyticsTab({ materiaId, workspaceId, mainColor }: AnalyticsTabProps) {
+export default function AnalyticsTab({ materiaId, materiaNome, materiaCor }: AnalyticsTabProps) {
   return (
-    <div className="h-full flex flex-col gap-8 overflow-y-auto pr-2 custom-scrollbar">
-      <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <BarChart2 size={24} style={{ color: mainColor }} />
-            Analytics & Insights
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Acertos (%)', value: '—', icon: Target, color: 'emerald' },
+          { label: 'Questões Feitas', value: '—', icon: Brain, color: 'cyan' },
+          { label: 'Tempo Médio/Questão', value: '—', icon: Clock, color: 'amber' },
+          { label: 'Evolução', value: '—', icon: TrendingUp, color: 'violet' },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="stat-card"
+          >
+            <stat.icon size={16} className={`text-${stat.color}-400 mb-2`} />
+            <p className="text-2xl font-bold text-slate-100">{stat.value}</p>
+            <p className="text-xs text-slate-500">{stat.label}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Charts placeholder */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-card p-6">
+          <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+            <BarChart3 size={14} className="text-cyan-400" />
+            Desempenho por Subtema
           </h3>
-          <p className="text-sm text-slate-500 mt-1">Análise profunda do seu rendimento acadêmico.</p>
-        </div>
-        
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10 w-full sm:w-auto">
-             <button className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-white/10">7 Dias</button>
-             <button className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-300 transition-all">30 Dias</button>
+          <div className="h-48 flex items-center justify-center">
+            <p className="text-xs text-slate-600 italic">
+              Gráfico será exibido com dados de simulados (Recharts)
+            </p>
           </div>
         </div>
-      </header>
 
-      {/* Top Highlights */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-         {[
-           { label: 'Tempo Total', value: '0h', trend: '0%', up: true, icon: Clock, color: '#3b82f6' },
-           { label: 'Eficiência', value: '0%', trend: '0%', up: true, icon: Activity, color: '#10b981' },
-           { label: 'Meta Diária', value: '0%', trend: '0%', up: false, icon: Target, color: '#f59e0b' },
-           { label: 'Pontuação IA', value: '---', trend: '0%', up: true, icon: TrendingUp, color: '#8b5cf6' },
-         ].map((stat, i) => (
-           <div key={i} className="glass-card p-4 lg:p-6 border-white/[0.05]">
-              <div className="flex items-center justify-between mb-4">
-                 <div className="p-2.5 rounded-xl bg-white/5" style={{ color: stat.color }}>
-                    <stat.icon size={18} />
-                 </div>
-                 <div className={`flex items-center gap-1 text-[10px] font-black ${stat.up ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {stat.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {stat.trend}
-                 </div>
-              </div>
-              <h4 className="text-xl lg:text-2xl font-black text-white mb-1">{stat.value}</h4>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{stat.label}</p>
-           </div>
-         ))}
+        <div className="glass-card p-6">
+          <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+            <PieChart size={14} className="text-violet-400" />
+            Distribuição de Dificuldade
+          </h3>
+          <div className="h-48 flex items-center justify-center">
+            <p className="text-xs text-slate-600 italic">
+              Gráfico de distribuição será gerado com dados reais
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-         {/* Gráfico de Horas de Estudo */}
-         <div className="lg:col-span-8 glass-card p-6 lg:p-8 min-h-[350px] lg:min-h-[400px] flex flex-col">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-               <h4 className="font-bold text-white text-sm flex items-center gap-2">
-                  <Calendar size={16} className="text-slate-500" />
-                  Horas de Estudo por Dia
-               </h4>
-               <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
-                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: mainColor }} />
-                     ESTA SEMANA
-                  </div>
-               </div>
-            </div>
-            
-            <div className="flex-1 w-full h-[250px] lg:h-[300px]">
-               <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={studyData}>
-                     <defs>
-                        <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                           <stop offset="5%" stopColor={mainColor} stopOpacity={0.3}/>
-                           <stop offset="95%" stopColor={mainColor} stopOpacity={0}/>
-                        </linearGradient>
-                     </defs>
-                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                     <XAxis 
-                        dataKey="day" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
-                        dy={10}
-                     />
-                     <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }}
-                     />
-                     <Tooltip 
-                        contentStyle={{ backgroundColor: '#0d1221', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '1rem' }}
-                        itemStyle={{ color: '#fff', fontSize: '12px' }}
-                     />
-                     <Area 
-                        type="monotone" 
-                        dataKey="hours" 
-                        stroke={mainColor} 
-                        strokeWidth={4}
-                        fillOpacity={1} 
-                        fill="url(#colorHours)" 
-                     />
-                  </AreaChart>
-               </ResponsiveContainer>
-            </div>
-         </div>
-
-         {/* Distribuição de Foco */}
-         <div className="lg:col-span-4 glass-card p-6 lg:p-8 flex flex-col">
-            <h4 className="font-bold text-white text-sm mb-8 flex items-center gap-2">
-               <Target size={16} className="text-slate-500" />
-               Distribuição de Foco
-            </h4>
-            
-            <div className="flex-1 flex flex-col items-center justify-center">
-               <div className="w-full h-[200px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                     <PieChart>
-                        <Pie
-                           data={topicData}
-                           innerRadius={60}
-                           outerRadius={80}
-                           paddingAngle={8}
-                           dataKey="value"
-                        >
-                           {topicData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                           ))}
-                        </Pie>
-                        <Tooltip />
-                     </PieChart>
-                  </ResponsiveContainer>
-               </div>
-               
-               <div className="w-full mt-8 space-y-3">
-                  {topicData.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between">
-                       <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                          <span className="text-[10px] font-bold text-slate-400 uppercase">{item.name}</span>
-                       </div>
-                       <span className="text-xs font-black text-white">{item.value}%</span>
-                    </div>
-                  ))}
-               </div>
-            </div>
-         </div>
-      </div>
-
-      {/* Insights da IA */}
-      <div className="glass-card p-6 lg:p-8 bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-transparent border-violet-500/20 mb-8">
-         <div className="flex flex-col sm:flex-row items-start gap-4 lg:gap-6">
-            <div className="p-4 rounded-2xl lg:rounded-[2rem] bg-violet-500/20 text-violet-400 border border-violet-500/20">
-               <TrendingUp size={24} className="lg:w-8 lg:h-8" />
-            </div>
-            <div>
-               <h4 className="text-lg lg:text-xl font-bold text-white mb-2">Previsão de Desempenho</h4>
-               <p className="text-xs lg:text-sm text-slate-300 leading-relaxed max-w-2xl">
-                  Ainda não temos dados suficientes para gerar uma previsão precisa. 
-                  <span className="font-bold text-white italic"> Continue estudando</span> para habilitar este insight.
-                  <span className="block mt-4 text-slate-400 flex items-center gap-2">
-                     <Info size={14} /> Dados atualizados automaticamente.
-                  </span>
-               </p>
-            </div>
-         </div>
+      <div className="glass-card p-6">
+        <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 mb-4">
+          <TrendingUp size={14} className="text-emerald-400" />
+          Evolução ao Longo do Tempo
+        </h3>
+        <div className="h-48 flex items-center justify-center">
+          <p className="text-xs text-slate-600 italic">
+            Gráfico de linha temporal com progresso em simulados
+          </p>
+        </div>
       </div>
     </div>
   )
