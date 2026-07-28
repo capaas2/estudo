@@ -25,6 +25,9 @@ export default function QuestoesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFilterMateria, setSelectedFilterMateria] = useState<string>('todas')
 
+  const ADMIN_EMAIL = 'gustavocapaz06@gmail.com'
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+
   // Modal Criar Questão
   const [showCreateQuestionModal, setShowCreateQuestionModal] = useState(false)
   const [enunciado, setEnunciado] = useState('')
@@ -370,34 +373,36 @@ export default function QuestoesPage() {
             </select>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Visibilidade da Questão</label>
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibilidade"
-                  checked={!isPublica}
-                  onChange={() => setIsPublica(false)}
-                  className="accent-indigo-500"
-                />
-                <Lock size={14} className="text-slate-400" />
-                <span>Privada (Apenas para mim)</span>
-              </label>
+          {isAdmin && (
+            <div className="form-group">
+              <label className="form-label">Visibilidade da Questão (Apenas Admin)</label>
+              <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="visibilidade"
+                    checked={!isPublica}
+                    onChange={() => setIsPublica(false)}
+                    className="accent-indigo-500"
+                  />
+                  <Lock size={14} className="text-slate-400" />
+                  <span>Privada (Apenas para mim)</span>
+                </label>
 
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibilidade"
-                  checked={isPublica}
-                  onChange={() => setIsPublica(true)}
-                  className="accent-indigo-500"
-                />
-                <Globe size={14} className="text-indigo-400" />
-                <span>Pública (Para Todos os Alunos)</span>
-              </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="visibilidade"
+                    checked={isPublica}
+                    onChange={() => setIsPublica(true)}
+                    className="accent-indigo-500"
+                  />
+                  <Globe size={14} className="text-indigo-400" />
+                  <span>Pública (Para Todos os Alunos)</span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Banca / Fonte (opcional)</label>
@@ -486,34 +491,36 @@ export default function QuestoesPage() {
             </select>
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Visibilidade das Questões do Lote</label>
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibilidadeImport"
-                  checked={!importIsPublica}
-                  onChange={() => setImportIsPublica(false)}
-                  className="accent-indigo-500"
-                />
-                <Lock size={14} className="text-slate-400" />
-                <span>Privadas (Apenas para mim)</span>
-              </label>
+          {isAdmin && (
+            <div className="form-group">
+              <label className="form-label">Visibilidade das Questões do Lote (Apenas Admin)</label>
+              <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="visibilidadeImport"
+                    checked={!importIsPublica}
+                    onChange={() => setImportIsPublica(false)}
+                    className="accent-indigo-500"
+                  />
+                  <Lock size={14} className="text-slate-400" />
+                  <span>Privadas (Apenas para mim)</span>
+                </label>
 
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
-                <input
-                  type="radio"
-                  name="visibilidadeImport"
-                  checked={importIsPublica}
-                  onChange={() => setImportIsPublica(true)}
-                  className="accent-indigo-500"
-                />
-                <Globe size={14} className="text-indigo-400" />
-                <span>Públicas (Para Todos os Alunos)</span>
-              </label>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="visibilidadeImport"
+                    checked={importIsPublica}
+                    onChange={() => setImportIsPublica(true)}
+                    className="accent-indigo-500"
+                  />
+                  <Globe size={14} className="text-indigo-400" />
+                  <span>Públicas (Para Todos os Alunos)</span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Cole o Conteúdo das Questões (Texto / Prova / PDF Copiado)</label>
