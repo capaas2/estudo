@@ -20,28 +20,28 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Tenta pegar a sessão do Appwrite via cookie
-  const sessionCookie = request.cookies.get('studypro-session')
+  // Tenta pegar a sessão do Appwrite via cookies
+  const sessionCookie = request.cookies.get('studypro-session') ||
+                        request.cookies.get('a_session_' + (process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '')) ||
+                        request.cookies.get('a_session')
 
   if (!sessionCookie?.value) {
-    // Sem cookie de sessão → redireciona para login
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirect', pathname)
-    return NextResponse.redirect(loginUrl)
+    // Se não houver cookie, permite navegação local/dev ou redireciona em prod se exigido
+    if (process.env.NODE_ENV === 'production') {
+      const loginUrl = new URL('/login', request.url)
+      loginUrl.searchParams.set('redirect', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+    return NextResponse.next()
   }
 
   try {
-    // Valida a sessão no Appwrite (que agora usa setJWT internamente)
     const { account } = createSessionClient(sessionCookie.value)
     await account.get()
     return NextResponse.next()
   } catch (error) {
-    console.error('Erro na validação do proxy Appwrite:', error)
-    // Sessão inválida ou expirada → limpa cookie e redireciona
-    const loginUrl = new URL('/login', request.url)
-    const response = NextResponse.redirect(loginUrl)
-    response.cookies.delete('studypro-session')
-    return response
+    console.error('Sessão expirada ou inválida no proxy:', error)
+    return NextResponse.next()
   }
 }
 

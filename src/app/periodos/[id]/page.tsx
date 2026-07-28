@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery } from '@tanstack/react-query'
 import { getPeriod } from '@/services/database/periods'
-import { listSubjectWorkspaces } from '@/services/database/materias'
+import { listSubjectWorkspaces, listMaterias } from '@/services/database/materias'
 import AppShell from '@/components/layout/AppShell'
 import EmptyState from '@/components/shared/EmptyState'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
@@ -31,6 +31,14 @@ export default function PeriodoDetalhePage() {
     enabled: !!user && !!periodId,
   })
 
+  const { data: materias = [] } = useQuery({
+    queryKey: ['materias', user?.$id],
+    queryFn: () => listMaterias(user!.$id),
+    enabled: !!user,
+  })
+
+  const materiasMap = new Map(materias.map(m => [m.$id, m]))
+
   if (userLoading || periodLoading || wsLoading) return <AppShell><PageLoading /></AppShell>
 
   return (
@@ -54,12 +62,14 @@ export default function PeriodoDetalhePage() {
           <EmptyState
             icon={BookOpen}
             title="Nenhuma matéria neste período"
-            description="Matérias são vinculadas durante o onboarding. Refaça o onboarding para adicionar matérias."
+            description="Matérias são vinculadas durante o onboarding ou pela opção de importar grade."
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {workspaces.map((ws, i) => {
-              const cor = ws.cor_override || '#06b6d4'
+              const materiaObj = materiasMap.get(ws.materia_id)
+              const nomeMateria = materiaObj?.nome || `Matéria ${ws.materia_id.slice(0, 6)}`
+              const cor = ws.cor_override || materiaObj?.cor || '#06b6d4'
               return (
                 <motion.div
                   key={ws.$id}
@@ -80,7 +90,7 @@ export default function PeriodoDetalhePage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="text-base font-bold text-slate-100 truncate">
-                          Matéria {ws.materia_id.slice(0, 6)}
+                          {nomeMateria}
                         </h3>
                         {ws.professor && (
                           <p className="text-xs text-slate-500 truncate">Prof. {ws.professor}</p>

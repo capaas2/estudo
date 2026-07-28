@@ -12,8 +12,9 @@ import Link from 'next/link'
 import { useState } from 'react'
 import {
   GraduationCap, Plus, ChevronRight, Trash2, BookOpen,
-  CheckCircle, Clock, Circle,
+  CheckCircle, Clock, Circle, Sparkles, Loader2,
 } from 'lucide-react'
+import { createMateria, createSubjectWorkspace } from '@/services/database/materias'
 import type { Period } from '@/types/database'
 
 const statusConfig: Record<Period['status'], { label: string; color: string; icon: typeof CheckCircle }> = {
@@ -22,12 +23,27 @@ const statusConfig: Record<Period['status'], { label: string; color: string; ico
   concluido: { label: 'Concluído', color: 'emerald', icon: CheckCircle },
 }
 
+const SUGESTAO_MEDICINA = [
+  { periodo: 1, materias: ['Anatomia Humana', 'Biologia Celular', 'Histologia', 'Embriologia', 'Bioquímica', 'Introdução à Medicina'] },
+  { periodo: 2, materias: ['Anatomia II', 'Fisiologia I', 'Histologia II', 'Bioquímica II', 'Genética', 'Saúde Coletiva'] },
+  { periodo: 3, materias: ['Fisiologia II', 'Microbiologia', 'Imunologia', 'Parasitologia', 'Patologia Geral', 'Farmacologia I'] },
+  { periodo: 4, materias: ['Patologia Especial', 'Farmacologia II', 'Semiologia Médica I', 'Saúde Mental', 'Epidemiologia', 'Bioética'] },
+  { periodo: 5, materias: ['Semiologia Médica II', 'Propedêutica', 'Clínica Médica I', 'Cirurgia I', 'Pediatria I', 'Ginecologia'] },
+  { periodo: 6, materias: ['Clínica Médica II', 'Cirurgia II', 'Pediatria II', 'Obstetrícia', 'Ortopedia', 'Oftalmologia'] },
+]
+
+const CORES_MATERIAS = [
+  '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#f43f5e',
+  '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+]
+
 export default function PeriodosPage() {
   const { data: user, isLoading: userLoading } = useCurrentUser()
   const queryClient = useQueryClient()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newNome, setNewNome] = useState('')
   const [newNumero, setNewNumero] = useState(1)
+  const [importingMedicina, setImportingMedicina] = useState(false)
 
   const { data: periods = [], isLoading } = useQuery({
     queryKey: ['periods', user?.$id],
@@ -53,6 +69,35 @@ export default function PeriodosPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['periods'] }),
   })
 
+  async function handleImportMedicina() {
+    if (!user) return
+    setImportingMedicina(true)
+    try {
+      for (const item of SUGESTAO_MEDICINA) {
+        const periodDoc = await createPeriod(user.$id, {
+          numero: item.periodo,
+          nome: `${item.periodo}º Período - Medicina`,
+          status: item.periodo === 1 ? 'em_andamento' : 'nao_iniciado',
+        })
+        for (let j = 0; j < item.materias.length; j++) {
+          const matNome = item.materias[j]
+          const matCor = CORES_MATERIAS[j % CORES_MATERIAS.length]
+          const materiaDoc = await createMateria(user.$id, { nome: matNome, cor: matCor })
+          await createSubjectWorkspace(user.$id, {
+            materia_id: materiaDoc.$id,
+            period_id: periodDoc.$id,
+            carga_horaria: 60,
+          })
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['periods'] })
+    } catch (err) {
+      console.error('Erro ao importar matriz de Medicina:', err)
+    } finally {
+      setImportingMedicina(false)
+    }
+  }
+
   if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
 
   return (
@@ -62,18 +107,33 @@ export default function PeriodosPage() {
           <h1 className="page-title">Períodos</h1>
           <p className="page-subtitle">{periods.length} período{periods.length !== 1 ? 's' : ''} cadastrado{periods.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-premium text-xs">
-          <Plus size={14} />
-          Novo Período
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleImportMedicina}
+            disabled={importingMedicina}
+            className="btn-secondary text-xs"
+            title="Importa os 6 períodos e matérias padrão de Medicina"
+          >
+            {importingMedicina ? (
+              <Loader2 size={14} className="animate-spin text-cyan-400" />
+            ) : (
+              <Sparkles size={14} className="text-amber-400" />
+            )}
+            {importingMedicina ? 'Importando...' : 'Importar Grade Medicina'}
+          </button>
+          <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-premium text-xs">
+            <Plus size={14} />
+            Novo Período
+          </button>
+        </div>
       </div>
       <div className="page-body">
         {periods.length === 0 ? (
           <EmptyState
             icon={GraduationCap}
             title="Nenhum período encontrado"
-            description="Complete o onboarding ou crie seu primeiro período."
-            action={{ label: 'Criar Período', onClick: () => setShowCreateModal(true) }}
+            description="Crie um período manualmente ou importe a grade padrão de Medicina em 1 clique."
+            action={{ label: importingMedicina ? 'Importando...' : 'Importar Grade Medicina', onClick: handleImportMedicina }}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

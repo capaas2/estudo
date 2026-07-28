@@ -2,14 +2,24 @@
 
 @layer base {
   :root {
-    --bg-primary: #0a0e1a;
-    --bg-secondary: #111827;
-    --bg-tertiary: #1a2236;
+    --bg-primary: #070a14;
+    --bg-secondary: #0d1222;
+    --bg-tertiary: #141b30;
     --accent-cyan: #06b6d4;
     --accent-violet: #8b5cf6;
     --accent-emerald: #10b981;
     --accent-amber: #f59e0b;
     --accent-rose: #f43f5e;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: #f1f5f9;
+    background-image: 
+      radial-gradient(at 15% 15%, rgba(6, 182, 212, 0.08) 0px, transparent 40%),
+      radial-gradient(at 85% 85%, rgba(139, 92, 246, 0.08) 0px, transparent 40%),
+      radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.04) 0px, transparent 60%);
+    background-attachment: fixed;
   }
 
   * {
@@ -25,11 +35,11 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: #334155;
+    background: #1e293b;
     border-radius: 3px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+    background: #334155;
   }
 }
 
