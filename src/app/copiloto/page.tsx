@@ -87,7 +87,7 @@ export default function CopilotoPage() {
       const response = await fetch('/api/copiloto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, context }),
+        body: JSON.stringify({ question, context, userEmail: user?.email }),
       })
 
       const data = await response.json()

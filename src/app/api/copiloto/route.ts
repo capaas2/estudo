@@ -1,13 +1,13 @@
 /**
  * API Route — Copiloto IA (RAG)
- * Recebe pergunta + contexto de notas relevantes, responde via Gemini com fallback automático de modelos.
+ * Recebe pergunta + contexto de notas relevantes, responde via Qwen3.7 Flash para Admin e openrouter/free para alunos.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { generateContentWithFallback } from '@/lib/ai/geminiClient'
 
 export async function POST(request: NextRequest) {
   try {
-    const { question, context, materiaNome } = await request.json()
+    const { question, context, materiaNome, userEmail } = await request.json()
 
     if (!question) {
       return NextResponse.json({ error: 'Envie a pergunta' }, { status: 400 })
@@ -31,6 +31,7 @@ REGRAS:
     const text = await generateContentWithFallback({
       systemPrompt,
       prompt,
+      userEmail,
       temperature: 0.7,
       maxTokens: 2048,
     })

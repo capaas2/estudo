@@ -80,7 +80,7 @@ export default function IACopilotTab({ materiaId, materiaNome }: IACopilotTabPro
       const response = await fetch('/api/copiloto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, context, materiaNome }),
+        body: JSON.stringify({ question, context, materiaNome, userEmail: user?.email }),
       })
 
       const data = await response.json()

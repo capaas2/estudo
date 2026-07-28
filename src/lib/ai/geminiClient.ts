@@ -1,13 +1,21 @@
 /**
- * Client de IA Principal — OpenRouter (Qwen3.7 Flash + MiMo-V2.5 + Fallback)
- * Modelo ultra-barato e rápido: Qwen3.7 Flash ($0,03/M input | $0,13/M output | 1M Context).
+ * Client de IA Inteligente com Roteamento por Nível de Conta:
+ * - Admin (gustavocapaz06@gmail.com): Qwen 3.7 Flash ($0,03/M) + MiMo-V2.5 ($0,112/M)
+ * - Alunos Padrão: Rota 100% Gratuita (openrouter/free)
  */
 
-const OPENROUTER_MODELS = [
-  'qwen/qwen3.7-flash',            // Modelo Principal Super Barato ($0.03 / $0.13)
-  'xiaomi/mimo-v2.5',              // Modelo Secundário Multimodal ($0.112 / $0.224)
-  'openrouter/free',               // Fallback Roteador Gratuito
-  'google/gemma-4-31b-it:free',
+const ADMIN_EMAIL = 'gustavocapaz06@gmail.com'
+
+const ADMIN_MODELS = [
+  'qwen/qwen3.7-flash',   // Modelo Pro Exclusivo do Admin ($0.03 / $0.13)
+  'xiaomi/mimo-v2.5',     // Modelo Secundário Multimodal do Admin
+  'openrouter/free',      // Contingência Gratuita
+]
+
+const STUDENT_MODELS = [
+  'openrouter/free',             // Roteador Gratuito para Alunos
+  'google/gemma-4-31b-it:free',  // Modelo Gratuito Secundário
+  'openai/gpt-oss-20b:free',
 ]
 
 export async function generateContentWithFallback(options: {
@@ -15,15 +23,23 @@ export async function generateContentWithFallback(options: {
   prompt: string
   temperature?: number
   maxTokens?: number
+  userEmail?: string
 }): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY não configurada no arquivo .env.local')
   }
 
+  // Verifica se a requisição veio da conta do Administrador
+  const isAdmin = options.userEmail
+    ? options.userEmail.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+    : true // Por padrão no ambiente de desenvolvimento assume a conta do Admin
+
+  const modelList = isAdmin ? ADMIN_MODELS : STUDENT_MODELS
+
   let lastErrorText = ''
 
-  for (const model of OPENROUTER_MODELS) {
+  for (const model of modelList) {
     try {
       const messages = []
       if (options.systemPrompt) {
@@ -48,7 +64,7 @@ export async function generateContentWithFallback(options: {
       })
 
       if (response.status === 429) {
-        console.warn(`[OpenRouter IA] Modelo ${model} atingiu taxa limite (429). Tentando próximo modelo...`)
+        console.warn(`[OpenRouter IA] Modelo ${model} atingiu limite (429). Tentando próximo modelo...`)
         await new Promise(res => setTimeout(res, 600))
         continue
       }
