@@ -65,18 +65,37 @@ export async function deleteMateria(materiaId: string): Promise<void> {
 // ============================================================
 
 export async function listSubjectWorkspaces(userId: string, periodId?: string): Promise<SubjectWorkspace[]> {
-  const queries = [Query.equal('user_id', userId)]
-  if (periodId) {
-    queries.push(Query.equal('period_id', periodId))
-  }
-  queries.push(Query.orderAsc('$createdAt'))
+  try {
+    const queries = [Query.equal('user_id', userId)]
+    if (periodId) {
+      queries.push(Query.equal('period_id', periodId))
+    }
+    queries.push(Query.orderAsc('$createdAt'))
 
-  const response = await databases.listDocuments(
-    DATABASE_ID,
-    COLLECTIONS.SUBJECTS_WORKSPACE,
-    queries
-  )
-  return response.documents as unknown as SubjectWorkspace[]
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.SUBJECTS_WORKSPACE,
+      queries
+    )
+    return response.documents as unknown as SubjectWorkspace[]
+  } catch (err) {
+    console.warn('Fallback listSubjectWorkspaces (sem filtro period_id direto):', err)
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.SUBJECTS_WORKSPACE,
+        [Query.equal('user_id', userId)]
+      )
+      let docs = response.documents as unknown as SubjectWorkspace[]
+      if (periodId) {
+        docs = docs.filter(d => d.period_id === periodId)
+      }
+      return docs
+    } catch (e) {
+      console.error('Erro ao listar subject workspaces:', e)
+      return []
+    }
+  }
 }
 
 export async function createSubjectWorkspace(userId: string, data: {

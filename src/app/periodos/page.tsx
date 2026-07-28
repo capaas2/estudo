@@ -225,28 +225,54 @@ export default function PeriodosPage() {
     if (!user) return
     setImportingMedicina(true)
     try {
+      // 1. Limpar períodos existentes anteriores se o usuário estiver reimportando
+      try {
+        const existingPeriods = await listPeriods(user.$id)
+        for (const p of existingPeriods) {
+          try { await deletePeriod(p.$id) } catch (e) { console.warn('Erro ao deletar período antigo:', e) }
+        }
+      } catch (errClean) {
+        console.warn('Aviso ao listar períodos para limpeza:', errClean)
+      }
+
+      // 2. Criar os 12 períodos e disciplinas com resiliência por item
       for (const item of CURRICULO_MEDICINA_EXACT) {
-        const periodDoc = await createPeriod(user.$id, {
-          numero: item.periodo,
-          nome: item.nome,
-          status: item.status,
-          progresso: item.progresso,
-        })
-        for (let j = 0; j < item.materias.length; j++) {
-          const mat = item.materias[j]
-          const matCor = CORES_MATERIAS[j % CORES_MATERIAS.length]
-          const materiaDoc = await createMateria(user.$id, { nome: mat.nome, cor: matCor })
-          await createSubjectWorkspace(user.$id, {
-            materia_id: materiaDoc.$id,
-            period_id: periodDoc.$id,
-            carga_horaria: mat.carga,
-            status: item.periodo === 1 ? 'concluido' : item.periodo === 2 ? 'cursando' : 'trancado',
+        let periodDoc: Period | null = null
+        try {
+          periodDoc = await createPeriod(user.$id, {
+            numero: item.periodo,
+            nome: item.nome,
+            status: item.status,
+            progresso: item.progresso,
           })
+        } catch (errPeriod) {
+          console.error(`Erro ao criar período ${item.periodo}:`, errPeriod)
+        }
+
+        if (periodDoc) {
+          for (let j = 0; j < item.materias.length; j++) {
+            const mat = item.materias[j]
+            const matCor = CORES_MATERIAS[j % CORES_MATERIAS.length]
+            try {
+              const materiaDoc = await createMateria(user.$id, { nome: mat.nome, cor: matCor })
+              await createSubjectWorkspace(user.$id, {
+                materia_id: materiaDoc.$id,
+                period_id: periodDoc.$id,
+                carga_horaria: mat.carga,
+                status: item.periodo === 1 ? 'concluido' : item.periodo === 2 ? 'cursando' : 'trancado',
+              })
+            } catch (errMat) {
+              console.error(`Erro ao criar disciplina ${mat.nome}:`, errMat)
+            }
+          }
         }
       }
-      queryClient.invalidateQueries({ queryKey: ['periods'] })
+
+      await queryClient.invalidateQueries({ queryKey: ['periods'] })
+      await queryClient.invalidateQueries({ queryKey: ['materias'] })
+      await queryClient.invalidateQueries({ queryKey: ['subject-workspaces'] })
     } catch (err) {
-      console.error('Erro ao importar matriz de Medicina:', err)
+      console.error('Erro global ao importar matriz de Medicina:', err)
     } finally {
       setImportingMedicina(false)
     }
