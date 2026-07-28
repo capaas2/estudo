@@ -42,6 +42,7 @@ export interface SubjectWorkspace extends AppwriteDocument {
   carga_horaria?: number
   cor_override?: string
   capa_url?: string
+  materia_nome?: string
 }
 
 export interface Subtema extends AppwriteDocument {

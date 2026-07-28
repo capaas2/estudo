@@ -235,7 +235,7 @@ export default function PeriodosPage() {
         console.warn('Aviso ao listar períodos para limpeza:', errClean)
       }
 
-      // 2. Criar os 12 períodos e disciplinas com resiliência por item
+      // 2. Criar os 12 períodos e todas as suas disciplinas
       for (const item of CURRICULO_MEDICINA_EXACT) {
         let periodDoc: Period | null = null
         try {
@@ -258,6 +258,7 @@ export default function PeriodosPage() {
               await createSubjectWorkspace(user.$id, {
                 materia_id: materiaDoc.$id,
                 period_id: periodDoc.$id,
+                materia_nome: mat.nome,
                 carga_horaria: mat.carga,
                 status: item.periodo === 1 ? 'concluido' : item.periodo === 2 ? 'cursando' : 'trancado',
               })

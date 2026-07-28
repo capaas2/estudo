@@ -66,6 +66,7 @@ export default function PeriodoDetalhePage() {
           await createSubjectWorkspace(user.$id, {
             materia_id: materiaDoc.$id,
             period_id: periodId,
+            materia_nome: mat.nome,
             carga_horaria: mat.carga,
             status: period.numero === 1 ? 'concluido' : period.numero === 2 ? 'cursando' : 'trancado',
           })
@@ -128,7 +129,7 @@ export default function PeriodoDetalhePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {workspaces.map((ws, i) => {
               const materiaObj = materiasMap.get(ws.materia_id)
-              const nomeMateria = materiaObj?.nome || `Disciplina`
+              const nomeMateria = ws.materia_nome || materiaObj?.nome || `Disciplina`
               const cor = ws.cor_override || materiaObj?.cor || '#6366f1'
               return (
                 <motion.div
