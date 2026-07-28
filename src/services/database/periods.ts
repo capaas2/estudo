@@ -29,6 +29,7 @@ export async function createPeriod(userId: string, data: {
   numero: number
   nome: string
   status?: Period['status']
+  progresso?: number
   meta_horas_semana?: number
 }): Promise<Period> {
   const doc = await databases.createDocument(
@@ -40,7 +41,7 @@ export async function createPeriod(userId: string, data: {
       numero: data.numero,
       nome: data.nome,
       status: data.status || 'nao_iniciado',
-      progresso: 0,
+      progresso: data.progresso ?? 0,
       meta_horas_semana: data.meta_horas_semana || 0,
     },
     userPermissions(userId)

@@ -82,6 +82,7 @@ export async function listSubjectWorkspaces(userId: string, periodId?: string): 
 export async function createSubjectWorkspace(userId: string, data: {
   materia_id: string
   period_id: string
+  status?: SubjectWorkspace['status']
   professor?: string
   carga_horaria?: number
   cor_override?: string
@@ -94,7 +95,7 @@ export async function createSubjectWorkspace(userId: string, data: {
       user_id: userId,
       materia_id: data.materia_id,
       period_id: data.period_id,
-      status: 'cursando',
+      status: data.status || 'cursando',
       progresso: 0,
       professor: data.professor || '',
       carga_horaria: data.carga_horaria || 0,

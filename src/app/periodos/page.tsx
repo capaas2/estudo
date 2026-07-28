@@ -23,19 +23,165 @@ const statusConfig: Record<Period['status'], { label: string; badge: string; ico
   concluido: { label: 'Concluído', badge: 'badge-success', icon: CheckCircle },
 }
 
-const CURRICULO_MEDICINA_12 = [
-  { periodo: 1, nome: "1º Período – Morfologia & Bioquímica", materias: ['Anatomia Humana I', 'Biologia Celular', 'Histologia e Embriologia I', 'Bioquímica I', 'Introdução à Medicina', 'Metodologia Científica'] },
-  { periodo: 2, nome: "2º Período – Fisiologia & Genética", materias: ['Anatomia Humana II', 'Fisiologia Humana I', 'Histologia e Embriologia II', 'Bioquímica II', 'Genética Médica', 'Psicologia Médica'] },
-  { periodo: 3, nome: "3º Período – Agentes & Defesa", materias: ['Fisiologia Humana II', 'Microbiologia Médica', 'Imunologia', 'Parasitologia Médica', 'Patologia Geral', 'Farmacologia I'] },
-  { periodo: 4, nome: "4º Período – Bases da Clínica & Patologia", materias: ['Patologia Especial', 'Farmacologia II', 'Semiologia Médica I', 'Saúde Mental I', 'Epidemiologia e Bioestatística', 'Bioética'] },
-  { periodo: 5, nome: "5º Período – Propedêutica & Clínica I", materias: ['Semiologia Médica II', 'Clínica Médica I', 'Cirurgia I', 'Pediatria I', 'Ginecologia e Obstetrícia I', 'Medicina Legal'] },
-  { periodo: 6, nome: "6º Período – Clínica Integrada I", materias: ['Clínica Médica II', 'Cirurgia II', 'Pediatria II', 'Ginecologia e Obstetrícia II', 'Ortopedia', 'Oftalmologia'] },
-  { periodo: 7, nome: "7º Período – Especialidades Médicas I", materias: ['Clínica Médica III', 'Emergências Médicas', 'Dermatologia', 'Otorrinolaringologia', 'Urologia', 'Neurologia'] },
-  { periodo: 8, nome: "8º Período – Especialidades Médicas II", materias: ['Clínica Médica IV', 'Cirurgia III', 'Psiquiatria II', 'Anestesiologia', 'Geriatria', 'Medicina de Família'] },
-  { periodo: 9, nome: "9º Período – Internato I (Clínica e Cirurgia)", materias: ['Estágio em Clínica Médica', 'Estágio em Cirurgia Geral', 'Estágio em Pediatria I'] },
-  { periodo: 10, nome: "10º Período – Internato II (GO & Saúde Pública)", materias: ['Estágio em Ginecologia e Obstetrícia', 'Estágio em Saúde Coletiva', 'Estágio em Saúde Mental'] },
-  { periodo: 11, nome: "11º Período – Internato III (Urgência & Eletivo)", materias: ['Estágio em Urgência e Emergência', 'Estágio em Medicina de Família II', 'Estágio Eletivo I'] },
-  { periodo: 12, nome: "12º Período – Internato IV (UTI & TCC)", materias: ['Estágio em UTI', 'Estágio Ambulatorial Geral', 'Estágio Eletivo II', 'TCC Medicina'] },
+export const CURRICULO_MEDICINA_EXACT = [
+  {
+    periodo: 1,
+    nome: "1º Período (2026/1)",
+    status: 'concluido' as const,
+    progresso: 100,
+    materias: [
+      { nome: "Anatomia Humana I", carga: 80 },
+      { nome: "Genética e Embriologia", carga: 104 },
+      { nome: "Habilidades, Atitudes e Comunicação I", carga: 80 },
+      { nome: "Histologia", carga: 40 },
+      { nome: "Homeostasia I", carga: 122 },
+      { nome: "Homeostasia II", carga: 122 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade I", carga: 60 },
+    ],
+  },
+  {
+    periodo: 2,
+    nome: "2º Período (2026/2)",
+    status: 'em_andamento' as const,
+    progresso: 15,
+    materias: [
+      { nome: "Habilidades, Atitudes e Comunicação II", carga: 80 },
+      { nome: "Metabolismo", carga: 122 },
+      { nome: "Metabolismo II", carga: 104 },
+      { nome: "Neuroanatomia", carga: 40 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade II", carga: 60 },
+      { nome: "Sistema Nervoso", carga: 122 },
+    ],
+  },
+  {
+    periodo: 3,
+    nome: "3º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Anatomia Humana II", carga: 60 },
+      { nome: "Habilidades, Atitudes e Comunicação III", carga: 80 },
+      { nome: "Histologia II", carga: 40 },
+      { nome: "Interação com o Meio Ambiente", carga: 104 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade III", carga: 60 },
+      { nome: "Sistema Circulatório", carga: 122 },
+      { nome: "Sistema Locomotor", carga: 122 },
+    ],
+  },
+  {
+    periodo: 4,
+    nome: "4º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Habilidades, Atitudes e Comunicação IV", carga: 80 },
+      { nome: "Optativa (1)", carga: 40 },
+      { nome: "Patologia Geral", carga: 40 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade IV", carga: 80 },
+      { nome: "Sistema Digestório", carga: 122 },
+      { nome: "Sistema Respiratório", carga: 104 },
+      { nome: "Sistema Urinário", carga: 122 },
+    ],
+  },
+  {
+    periodo: 5,
+    nome: "5º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Anatomia Patológica e Fisiopatologia I", carga: 40 },
+      { nome: "Dermatologia e Carcinogênese", carga: 122 },
+      { nome: "Farmacologia Básica", carga: 40 },
+      { nome: "Habilidades, Atitudes e Comunicação V", carga: 80 },
+      { nome: "Optativa (2)", carga: 40 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade V", carga: 80 },
+      { nome: "Radiologia e Diagnóstico por Imagem", carga: 60 },
+      { nome: "Saúde Mental e Comportamento", carga: 122 },
+      { nome: "Sistema Hemolinfopoiético", carga: 104 },
+    ],
+  },
+  {
+    periodo: 6,
+    nome: "6º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Anatomia Patológica e Fisiopatologia II", carga: 40 },
+      { nome: "Atividades Complementares em Medicina", carga: 80 },
+      { nome: "Envelhecimento", carga: 92 },
+      { nome: "Farmacologia Clínica I", carga: 40 },
+      { nome: "Habilidades, Atitudes e Comunicação VI", carga: 80 },
+      { nome: "Nascimento, Crescimento e Desenvolvimento", carga: 104 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade VI", carga: 80 },
+      { nome: "Reprodução e Sexualidade", carga: 104 },
+    ],
+  },
+  {
+    periodo: 7,
+    nome: "7º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Apresentações Clínicas I", carga: 104 },
+      { nome: "Apresentações Clínicas II", carga: 104 },
+      { nome: "Apresentações Clínicas III", carga: 92 },
+      { nome: "Farmacologia Clínica II", carga: 40 },
+      { nome: "Habilidades, Atitudes e Comunicação VII", carga: 80 },
+      { nome: "Optativa (3)", carga: 40 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade VII", carga: 80 },
+    ],
+  },
+  {
+    periodo: 8,
+    nome: "8º Período",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Apresentações Clínicas IV", carga: 104 },
+      { nome: "Apresentações Clínicas V", carga: 104 },
+      { nome: "Apresentações Clínicas VI", carga: 92 },
+      { nome: "Farmacologia Clínica III", carga: 40 },
+      { nome: "Habilidades, Atitudes e Comunicação VIII", carga: 80 },
+      { nome: "Programa de Interação Serviço Ensino Comunidade VIII", carga: 80 },
+    ],
+  },
+  {
+    periodo: 9,
+    nome: "9º Período – Internato I",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Internato I - Criança e Mulher", carga: 840 },
+    ],
+  },
+  {
+    periodo: 10,
+    nome: "10º Período – Internato II",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Internato II - Adulto e Idoso", carga: 840 },
+    ],
+  },
+  {
+    periodo: 11,
+    nome: "11º Período – Internato III",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Internato III - Família e Comunidade", carga: 840 },
+    ],
+  },
+  {
+    periodo: 12,
+    nome: "12º Período – Internato IV",
+    status: 'nao_iniciado' as const,
+    progresso: 0,
+    materias: [
+      { nome: "Internato IV - Clínicas Avançadas", carga: 420 },
+      { nome: "Internato V - Consolidação e Aprimoramento", carga: 420 },
+    ],
+  },
 ]
 
 const CORES_MATERIAS = [
@@ -79,20 +225,22 @@ export default function PeriodosPage() {
     if (!user) return
     setImportingMedicina(true)
     try {
-      for (const item of CURRICULO_MEDICINA_12) {
+      for (const item of CURRICULO_MEDICINA_EXACT) {
         const periodDoc = await createPeriod(user.$id, {
           numero: item.periodo,
           nome: item.nome,
-          status: item.periodo === 1 ? 'em_andamento' : 'nao_iniciado',
+          status: item.status,
+          progresso: item.progresso,
         })
         for (let j = 0; j < item.materias.length; j++) {
-          const matNome = item.materias[j]
+          const mat = item.materias[j]
           const matCor = CORES_MATERIAS[j % CORES_MATERIAS.length]
-          const materiaDoc = await createMateria(user.$id, { nome: matNome, cor: matCor })
+          const materiaDoc = await createMateria(user.$id, { nome: mat.nome, cor: matCor })
           await createSubjectWorkspace(user.$id, {
             materia_id: materiaDoc.$id,
             period_id: periodDoc.$id,
-            carga_horaria: 60,
+            carga_horaria: mat.carga,
+            status: item.periodo === 1 ? 'concluido' : item.periodo === 2 ? 'cursando' : 'trancado',
           })
         }
       }
@@ -118,14 +266,14 @@ export default function PeriodosPage() {
             onClick={handleImportMedicina}
             disabled={importingMedicina}
             className="btn-outline text-xs"
-            title="Importa os 12 períodos padrão MEC de Medicina"
+            title="Importa sua matriz curricular exata de Medicina (12 períodos)"
           >
             {importingMedicina ? (
               <Loader2 size={14} className="animate-spin text-indigo-400" />
             ) : (
               <Sparkles size={14} className="text-amber-400" />
             )}
-            {importingMedicina ? 'Importando Grade (12 períodos)...' : 'Importar Grade Medicina (12 Períodos)'}
+            {importingMedicina ? 'Importando Matriz Oficial...' : 'Importar Minha Grade Oficial (12 Períodos)'}
           </button>
           <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-primary text-xs">
             <Plus size={14} />
@@ -139,8 +287,8 @@ export default function PeriodosPage() {
           <EmptyState
             icon={GraduationCap}
             title="Nenhum período cadastrado"
-            description="Importe com 1 clique o currículo padrão de Medicina de 12 períodos (Ciclo Básico, Clínico e Internato)."
-            action={{ label: importingMedicina ? 'Importando...' : 'Importar Grade Medicina (12 Períodos)', onClick: handleImportMedicina }}
+            description="Importe com 1 clique a sua grade oficial de Medicina completa (do 1º período concluído até o Internato)."
+            action={{ label: importingMedicina ? 'Importando...' : 'Importar Minha Grade Oficial', onClick: handleImportMedicina }}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -181,7 +329,7 @@ export default function PeriodosPage() {
                         </div>
                         <button
                           onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
-                          className="btn-icon text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="btn-icon text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -198,7 +346,7 @@ export default function PeriodosPage() {
                       </div>
 
                       <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
-                        <span>Acessar matérias</span>
+                        <span>Acessar disciplinas</span>
                         <ChevronRight size={15} className="text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
                       </div>
                     </Link>
