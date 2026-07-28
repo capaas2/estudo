@@ -3,18 +3,20 @@
 import { useParams } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getPeriod } from '@/services/database/periods'
-import { listSubjectWorkspaces, listMaterias, createMateria, createSubjectWorkspace } from '@/services/database/materias'
+import { getPeriod, updatePeriod } from '@/services/database/periods'
+import { listSubjectWorkspaces, listMaterias, createMateria, createSubjectWorkspace, updateSubjectWorkspace } from '@/services/database/materias'
 import { CURRICULO_MEDICINA_EXACT } from '../page'
 import AppShell from '@/components/layout/AppShell'
 import EmptyState from '@/components/shared/EmptyState'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
+import Modal from '@/components/shared/Modal'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useState } from 'react'
 import {
-  BookOpen, ChevronRight, GraduationCap, ArrowLeft, Plus, Sparkles, Loader2,
+  BookOpen, ChevronRight, GraduationCap, ArrowLeft, Plus, Sparkles, Loader2, Edit3,
 } from 'lucide-react'
+import type { SubjectWorkspace } from '@/types/database'
 
 const CORES_MATERIAS = [
   '#6366f1', '#8b5cf6', '#34d399', '#fbbf24', '#f43f5e',
@@ -27,6 +29,12 @@ export default function PeriodoDetalhePage() {
   const queryClient = useQueryClient()
   const [generating, setGenerating] = useState(false)
   const periodId = params.id as string
+
+  // Edit Subject Workspace Modal State
+  const [editingWs, setEditingWs] = useState<SubjectWorkspace | null>(null)
+  const [editStatus, setEditStatus] = useState<SubjectWorkspace['status']>('cursando')
+  const [editProgresso, setEditProgresso] = useState<number>(0)
+  const [editProfessor, setEditProfessor] = useState<string>('')
 
   const { data: period, isLoading: periodLoading } = useQuery({
     queryKey: ['period', periodId],
@@ -47,6 +55,25 @@ export default function PeriodoDetalhePage() {
   })
 
   const materiasMap = new Map(materias.map(m => [m.$id, m]))
+
+  const updateWsMutation = useMutation({
+    mutationFn: (data: { id: string; status: SubjectWorkspace['status']; progresso: number; professor?: string }) =>
+      updateSubjectWorkspace(data.id, { status: data.status, progresso: data.progresso, professor: data.professor }),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['subject-workspaces', user?.$id, periodId] })
+
+      // Recalcular progresso médio do período automaticamente
+      if (workspaces.length > 0) {
+        const updatedWorkspaces = workspaces.map(w => w.$id === variables.id ? { ...w, progresso: variables.progresso, status: variables.status } : w)
+        const media = Math.round(updatedWorkspaces.reduce((acc, curr) => acc + (curr.progresso || 0), 0) / updatedWorkspaces.length)
+        const periodStatus = media === 100 ? 'concluido' : media > 0 ? 'em_andamento' : 'nao_iniciado'
+        await updatePeriod(periodId, { progresso: media, status: periodStatus })
+        await queryClient.invalidateQueries({ queryKey: ['periods', user?.$id] })
+        await queryClient.invalidateQueries({ queryKey: ['period', periodId] })
+      }
+      setEditingWs(null)
+    },
+  })
 
   async function handleGerarMateriasPeriodo() {
     if (!user || !period) return
@@ -82,6 +109,15 @@ export default function PeriodoDetalhePage() {
     } finally {
       setGenerating(false)
     }
+  }
+
+  function handleOpenEditWs(ws: SubjectWorkspace, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setEditingWs(ws)
+    setEditStatus(ws.status)
+    setEditProgresso(ws.progresso || 0)
+    setEditProfessor(ws.professor || '')
   }
 
   if (userLoading || periodLoading || wsLoading) return <AppShell><PageLoading /></AppShell>
@@ -157,7 +193,13 @@ export default function PeriodoDetalhePage() {
                           <p className="text-xs text-slate-400 truncate">Prof. {ws.professor}</p>
                         )}
                       </div>
-                      <ChevronRight size={16} className="text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all shrink-0" />
+                      <button
+                        onClick={(e) => handleOpenEditWs(ws, e)}
+                        className="btn-icon text-slate-400 hover:text-indigo-400 opacity-80 hover:opacity-100 transition-opacity p-1.5 shrink-0 cursor-pointer"
+                        title="Editar Disciplina"
+                      >
+                        <Edit3 size={15} />
+                      </button>
                     </div>
 
                     <div className="space-y-1.5 mb-3">
@@ -188,6 +230,72 @@ export default function PeriodoDetalhePage() {
           </div>
         )}
       </div>
+
+      {/* Modal Editar Disciplina */}
+      {editingWs && (
+        <Modal
+          open={!!editingWs}
+          onClose={() => setEditingWs(null)}
+          title={`Editar Disciplina: ${editingWs.materia_nome || 'Disciplina'}`}
+          footer={
+            <>
+              <button onClick={() => setEditingWs(null)} className="btn-outline text-xs">Cancelar</button>
+              <button
+                onClick={() => updateWsMutation.mutate({
+                  id: editingWs.$id,
+                  status: editStatus,
+                  progresso: editProgresso,
+                  professor: editProfessor,
+                })}
+                disabled={updateWsMutation.isPending}
+                className="btn-primary text-xs"
+              >
+                {updateWsMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="form-label">Status da Disciplina</label>
+              <select
+                value={editStatus}
+                onChange={e => setEditStatus(e.target.value as SubjectWorkspace['status'])}
+                className="form-select"
+              >
+                <option value="cursando">Cursando</option>
+                <option value="concluido">Concluído</option>
+                <option value="trancado">A Cursar (Pendente)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label">Progresso ({editProgresso}%)</label>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={editProgresso}
+                onChange={e => setEditProgresso(parseInt(e.target.value) || 0)}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Professor (opcional)</label>
+              <input
+                type="text"
+                value={editProfessor}
+                onChange={e => setEditProfessor(e.target.value)}
+                placeholder="Nome do professor..."
+                className="form-input"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </AppShell>
   )
 }

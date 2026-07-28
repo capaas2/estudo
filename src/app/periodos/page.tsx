@@ -2,7 +2,7 @@
 
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listPeriods, createPeriod, deletePeriod } from '@/services/database/periods'
+import { listPeriods, createPeriod, updatePeriod, deletePeriod } from '@/services/database/periods'
 import { createMateria, createSubjectWorkspace } from '@/services/database/materias'
 import AppShell from '@/components/layout/AppShell'
 import EmptyState from '@/components/shared/EmptyState'
@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useState } from 'react'
 import {
-  GraduationCap, Plus, ChevronRight, Trash2, BookOpen,
+  GraduationCap, Plus, ChevronRight, Trash2, Edit3,
   CheckCircle, Clock, Circle, Sparkles, Loader2, Award,
 } from 'lucide-react'
 import type { Period } from '@/types/database'
@@ -197,6 +197,11 @@ export default function PeriodosPage() {
   const [newNumero, setNewNumero] = useState(1)
   const [importingMedicina, setImportingMedicina] = useState(false)
 
+  // Edit State
+  const [editingPeriod, setEditingPeriod] = useState<Period | null>(null)
+  const [editStatus, setEditStatus] = useState<Period['status']>('nao_iniciado')
+  const [editProgresso, setEditProgresso] = useState<number>(0)
+
   const { data: periods = [], isLoading } = useQuery({
     queryKey: ['periods', user?.$id],
     queryFn: () => listPeriods(user!.$id),
@@ -216,6 +221,15 @@ export default function PeriodosPage() {
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: (data: { id: string; status: Period['status']; progresso: number }) =>
+      updatePeriod(data.id, { status: data.status, progresso: data.progresso }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['periods'] })
+      setEditingPeriod(null)
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deletePeriod(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['periods'] }),
@@ -225,7 +239,6 @@ export default function PeriodosPage() {
     if (!user) return
     setImportingMedicina(true)
     try {
-      // 1. Limpar períodos existentes anteriores se o usuário estiver reimportando
       try {
         const existingPeriods = await listPeriods(user.$id)
         for (const p of existingPeriods) {
@@ -235,7 +248,6 @@ export default function PeriodosPage() {
         console.warn('Aviso ao listar períodos para limpeza:', errClean)
       }
 
-      // 2. Criar os 12 períodos e todas as suas disciplinas
       for (const item of CURRICULO_MEDICINA_EXACT) {
         let periodDoc: Period | null = null
         try {
@@ -277,6 +289,14 @@ export default function PeriodosPage() {
     } finally {
       setImportingMedicina(false)
     }
+  }
+
+  function handleOpenEditModal(p: Period, e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setEditingPeriod(p)
+    setEditStatus(p.status)
+    setEditProgresso(p.progresso || 0)
   }
 
   if (userLoading || isLoading) return <AppShell><PageLoading /></AppShell>
@@ -354,12 +374,23 @@ export default function PeriodosPage() {
                             </span>
                           </div>
                         </div>
-                        <button
-                          onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
-                          className="btn-icon text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => handleOpenEditModal(period, e)}
+                            className="btn-icon text-slate-400 hover:text-indigo-400 opacity-80 hover:opacity-100 transition-opacity cursor-pointer p-1.5"
+                            title="Editar Status e Progresso"
+                          >
+                            <Edit3 size={15} />
+                          </button>
+                          <button
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
+                            className="btn-icon text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1.5"
+                            title="Excluir Período"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="space-y-1.5">
@@ -427,6 +458,60 @@ export default function PeriodosPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal Editar Período */}
+      {editingPeriod && (
+        <Modal
+          open={!!editingPeriod}
+          onClose={() => setEditingPeriod(null)}
+          title={`Editar Período: ${editingPeriod.nome}`}
+          footer={
+            <>
+              <button onClick={() => setEditingPeriod(null)} className="btn-outline text-xs">Cancelar</button>
+              <button
+                onClick={() => updateMutation.mutate({
+                  id: editingPeriod.$id,
+                  status: editStatus,
+                  progresso: editProgresso,
+                })}
+                disabled={updateMutation.isPending}
+                className="btn-primary text-xs"
+              >
+                {updateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="form-label">Status do Período</label>
+              <select
+                value={editStatus}
+                onChange={e => setEditStatus(e.target.value as Period['status'])}
+                className="form-select"
+              >
+                <option value="nao_iniciado">Não Iniciado</option>
+                <option value="em_andamento">Em Andamento</option>
+                <option value="concluido">Concluído</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label">Progresso ({editProgresso}%)</label>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={editProgresso}
+                onChange={e => setEditProgresso(parseInt(e.target.value) || 0)}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </AppShell>
   )
 }

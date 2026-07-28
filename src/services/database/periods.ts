@@ -122,10 +122,27 @@ export async function updatePeriod(periodId: string, data: Partial<Omit<Period, 
       periodId,
       data
     )
-    return doc as unknown as Period
+    const result = doc as unknown as Period
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(LOCAL_STORAGE_KEY_PERIODS))
+      for (const k of keys) {
+        const list: Period[] = JSON.parse(localStorage.getItem(k) || '[]')
+        const updated = list.map(p => (p.$id === periodId || String(p.numero) === periodId) ? { ...p, ...data } : p)
+        localStorage.setItem(k, JSON.stringify(updated))
+      }
+    }
+    return result
   } catch (err) {
     console.warn('Atualizando período localmente:', err)
-    return { $id: periodId } as Period
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(LOCAL_STORAGE_KEY_PERIODS))
+      for (const k of keys) {
+        const list: Period[] = JSON.parse(localStorage.getItem(k) || '[]')
+        const updated = list.map(p => (p.$id === periodId || String(p.numero) === periodId) ? { ...p, ...data } : p)
+        localStorage.setItem(k, JSON.stringify(updated))
+      }
+    }
+    return { $id: periodId, ...data } as Period
   }
 }
 

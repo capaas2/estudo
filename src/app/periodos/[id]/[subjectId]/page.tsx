@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { listSubjectWorkspaces, updateSubjectWorkspace } from '@/services/database/materias'
+import { updatePeriod } from '@/services/database/periods'
 import AppShell from '@/components/layout/AppShell'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
+import Modal from '@/components/shared/Modal'
 import { motion } from 'framer-motion'
 import {
-  Eye, FileText, Layers, Database, FolderOpen, Sparkles, BookOpen,
+  Eye, FileText, Layers, Database, FolderOpen, Sparkles, BookOpen, Edit3, CheckCircle2, Clock, Circle,
 } from 'lucide-react'
+import type { SubjectWorkspace } from '@/types/database'
 
 // Workspace tab components
 import OverviewTab from '@/components/workspace/OverviewTab'
@@ -33,25 +38,64 @@ const TABS = [
 export default function WorkspacePage() {
   const params = useParams()
   const { data: user, isLoading: userLoading } = useCurrentUser()
+  const queryClient = useQueryClient()
+
   const [activeTab, setActiveTab] = useState('visao-geral')
   const [estudoSubTab, setEstudoSubTab] = useState<'revisoes' | 'flashcards' | 'tarefas'>('revisoes')
   const [iaSubTab, setIaSubTab] = useState<'copiloto' | 'clube'>('copiloto')
 
+  // Edit Modal State
+  const [showEditModal, setShowEditModal] = useState(false)
+
   const periodId = params.id as string
   const subjectId = params.subjectId as string
 
-  const materiaNome = 'Matéria de Medicina'
-  const materiaCor = '#6366f1'
-  const materiaId = subjectId
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ['subject-workspaces', user?.$id, periodId],
+    queryFn: () => listSubjectWorkspaces(user!.$id, periodId),
+    enabled: !!user && !!periodId,
+  })
+
+  const currentWorkspace = workspaces.find(w => w.$id === subjectId) || workspaces[0]
+
+  const materiaNome = currentWorkspace?.materia_nome || 'Disciplina de Medicina'
+  const materiaCor = currentWorkspace?.cor_override || '#6366f1'
+
+  const [editStatus, setEditStatus] = useState<SubjectWorkspace['status']>(currentWorkspace?.status || 'cursando')
+  const [editProgresso, setEditProgresso] = useState<number>(currentWorkspace?.progresso || 0)
+
+  const updateWsMutation = useMutation({
+    mutationFn: (data: { status: SubjectWorkspace['status']; progresso: number }) =>
+      updateSubjectWorkspace(subjectId, { status: data.status, progresso: data.progresso }),
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['subject-workspaces', user?.$id, periodId] })
+
+      // Recalcular progresso médio do período
+      if (workspaces.length > 0) {
+        const updatedWorkspaces = workspaces.map(w => w.$id === subjectId ? { ...w, progresso: variables.progresso, status: variables.status } : w)
+        const media = Math.round(updatedWorkspaces.reduce((acc, curr) => acc + (curr.progresso || 0), 0) / updatedWorkspaces.length)
+        const periodStatus = media === 100 ? 'concluido' : media > 0 ? 'em_andamento' : 'nao_iniciado'
+        await updatePeriod(periodId, { progresso: media, status: periodStatus })
+        await queryClient.invalidateQueries({ queryKey: ['periods', user?.$id] })
+      }
+      setShowEditModal(false)
+    },
+  })
+
+  function handleOpenModal() {
+    setEditStatus(currentWorkspace?.status || 'cursando')
+    setEditProgresso(currentWorkspace?.progresso || 0)
+    setShowEditModal(true)
+  }
 
   if (userLoading) return <AppShell><PageLoading /></AppShell>
 
   function renderTabContent() {
     switch (activeTab) {
       case 'visao-geral':
-        return <OverviewTab materiaId={materiaId} materiaNome={materiaNome} materiaCor={materiaCor} />
+        return <OverviewTab materiaId={subjectId} materiaNome={materiaNome} materiaCor={materiaCor} />
       case 'notas':
-        return <NotesTab materiaId={materiaId} />
+        return <NotesTab materiaId={subjectId} />
       case 'estudo':
         return (
           <div className="space-y-6">
@@ -82,15 +126,15 @@ export default function WorkspacePage() {
               </button>
             </div>
 
-            {estudoSubTab === 'revisoes' && <ReviewsTab materiaId={materiaId} />}
-            {estudoSubTab === 'flashcards' && <FlashcardsTab materiaId={materiaId} materiaNome={materiaNome} />}
-            {estudoSubTab === 'tarefas' && <TasksTab materiaId={materiaId} />}
+            {estudoSubTab === 'revisoes' && <ReviewsTab materiaId={subjectId} />}
+            {estudoSubTab === 'flashcards' && <FlashcardsTab materiaId={subjectId} materiaNome={materiaNome} />}
+            {estudoSubTab === 'tarefas' && <TasksTab materiaId={subjectId} />}
           </div>
         )
       case 'questoes':
-        return <QuestionsTab materiaId={materiaId} />
+        return <QuestionsTab materiaId={subjectId} />
       case 'arquivos':
-        return <FilesTab materiaId={materiaId} />
+        return <FilesTab materiaId={subjectId} />
       case 'ia':
         return (
           <div className="space-y-6">
@@ -113,14 +157,20 @@ export default function WorkspacePage() {
               </button>
             </div>
 
-            {iaSubTab === 'copiloto' && <IACopilotTab materiaId={materiaId} materiaNome={materiaNome} />}
-            {iaSubTab === 'clube' && <JournalClubTab materiaId={materiaId} />}
+            {iaSubTab === 'copiloto' && <IACopilotTab materiaId={subjectId} materiaNome={materiaNome} />}
+            {iaSubTab === 'clube' && <JournalClubTab materiaId={subjectId} />}
           </div>
         )
       default:
         return null
     }
   }
+
+  const statusBadge = currentWorkspace?.status === 'concluido'
+    ? { label: 'Concluído', class: 'badge-success', icon: CheckCircle2 }
+    : currentWorkspace?.status === 'cursando'
+    ? { label: 'Cursando', class: 'badge-warning', icon: Clock }
+    : { label: 'A Cursar', class: 'badge-indigo', icon: Circle }
 
   return (
     <AppShell>
@@ -131,10 +181,27 @@ export default function WorkspacePage() {
             <BookOpen size={20} />
           </div>
           <div>
-            <h1 className="page-title">{materiaNome}</h1>
+            <div className="flex items-center gap-2.5">
+              <h1 className="page-title">{materiaNome}</h1>
+              <span className={`badge-sm ${statusBadge.class} inline-flex items-center gap-1`}>
+                <statusBadge.icon size={10} />
+                {statusBadge.label}
+              </span>
+              <span className="text-xs font-bold text-indigo-400">
+                {currentWorkspace?.progresso || 0}%
+              </span>
+            </div>
             <p className="page-subtitle">Workspace de estudo da matéria</p>
           </div>
         </div>
+
+        <button
+          onClick={handleOpenModal}
+          className="btn-outline text-xs"
+        >
+          <Edit3 size={14} />
+          Editar Progresso & Status
+        </button>
       </div>
 
       {/* Pill Navigation Bar */}
@@ -165,6 +232,59 @@ export default function WorkspacePage() {
           {renderTabContent()}
         </motion.div>
       </div>
+
+      {/* Modal Editar Progresso e Status */}
+      {showEditModal && (
+        <Modal
+          open={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          title={`Editar Disciplina: ${materiaNome}`}
+          footer={
+            <>
+              <button onClick={() => setShowEditModal(false)} className="btn-outline text-xs">Cancelar</button>
+              <button
+                onClick={() => updateWsMutation.mutate({
+                  status: editStatus,
+                  progresso: editProgresso,
+                })}
+                disabled={updateWsMutation.isPending}
+                className="btn-primary text-xs"
+              >
+                {updateWsMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="form-label">Status da Disciplina</label>
+              <select
+                value={editStatus}
+                onChange={e => setEditStatus(e.target.value as SubjectWorkspace['status'])}
+                className="form-select"
+              >
+                <option value="cursando">Cursando</option>
+                <option value="concluido">Concluído</option>
+                <option value="trancado">A Cursar (Pendente)</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <div className="flex justify-between items-center mb-1">
+                <label className="form-label">Porcentagem de Progresso ({editProgresso}%)</label>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={editProgresso}
+                onChange={e => setEditProgresso(parseInt(e.target.value) || 0)}
+                className="w-full accent-indigo-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </AppShell>
   )
 }

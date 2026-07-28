@@ -230,9 +230,27 @@ export async function updateSubjectWorkspace(swId: string, data: Partial<Omit<Su
       swId,
       data
     )
-    return doc as unknown as SubjectWorkspace
+    const result = doc as unknown as SubjectWorkspace
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(LOCAL_STORAGE_KEY_WORKSPACES))
+      for (const k of keys) {
+        const list: SubjectWorkspace[] = JSON.parse(localStorage.getItem(k) || '[]')
+        const updated = list.map(w => w.$id === swId ? { ...w, ...data } : w)
+        localStorage.setItem(k, JSON.stringify(updated))
+      }
+    }
+    return result
   } catch (err) {
-    return { $id: swId } as SubjectWorkspace
+    console.warn('Atualizando workspace localmente:', err)
+    if (typeof window !== 'undefined') {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(LOCAL_STORAGE_KEY_WORKSPACES))
+      for (const k of keys) {
+        const list: SubjectWorkspace[] = JSON.parse(localStorage.getItem(k) || '[]')
+        const updated = list.map(w => w.$id === swId ? { ...w, ...data } : w)
+        localStorage.setItem(k, JSON.stringify(updated))
+      }
+    }
+    return { $id: swId, ...data } as SubjectWorkspace
   }
 }
 
