@@ -5,6 +5,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listQuestoes, createQuestao } from '@/services/database/questoes'
 import { listSimulados } from '@/services/database/simulados'
+import { listMaterias } from '@/services/database/materias'
 import AppShell from '@/components/layout/AppShell'
 import EmptyState from '@/components/shared/EmptyState'
 import Modal from '@/components/shared/Modal'
@@ -13,23 +14,39 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import {
   HelpCircle, Plus, Search, Filter, BookOpen, ClipboardList,
-  CheckCircle2, Clock, Award, ArrowRight, Sparkles, ChevronRight,
+  CheckCircle2, Clock, Award, ArrowRight, Sparkles, ChevronRight, FileText, Upload, Loader2,
 } from 'lucide-react'
 
 export default function QuestoesPage() {
   const { data: user, isLoading: userLoading } = useCurrentUser()
   const queryClient = useQueryClient()
+
   const [activeTab, setActiveTab] = useState<'banco' | 'simulados'>('banco')
   const [searchTerm, setSearchTerm] = useState('')
-  const [showCreateQuestionModal, setShowCreateQuestionModal] = useState(false)
+  const [selectedFilterMateria, setSelectedFilterMateria] = useState<string>('todas')
 
-  // Form states para nova questão
+  // Modal Criar Questão
+  const [showCreateQuestionModal, setShowCreateQuestionModal] = useState(false)
   const [enunciado, setEnunciado] = useState('')
   const [opcaoA, setOpcaoA] = useState('')
   const [opcaoB, setOpcaoB] = useState('')
   const [opcaoC, setOpcaoC] = useState('')
   const [opcaoD, setOpcaoD] = useState('')
   const [correta, setCorreta] = useState('A')
+  const [selectedMateriaId, setSelectedMateriaId] = useState<string>('')
+  const [bancaInput, setBancaInput] = useState<string>('')
+
+  // Modal Importar Questões (PDF/Texto Lote)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importMateriaId, setImportMateriaId] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
+
+  const { data: materias = [] } = useQuery({
+    queryKey: ['materias', user?.$id],
+    queryFn: () => listMaterias(user!.$id),
+    enabled: !!user,
+  })
 
   const { data: questoes = [], isLoading: loadingQuestoes } = useQuery({
     queryKey: ['questoes', user?.$id],
@@ -47,9 +64,10 @@ export default function QuestoesPage() {
     mutationFn: () => createQuestao(user!.$id, {
       enunciado,
       tipo: 'objetiva',
-      materia_id: 'geral',
+      materia_id: selectedMateriaId || materias[0]?.$id || 'geral',
       dificuldade: 'medio',
       gabarito: correta,
+      banca: bancaInput || 'Própria',
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questoes'] })
@@ -59,14 +77,56 @@ export default function QuestoesPage() {
       setOpcaoB('')
       setOpcaoC('')
       setOpcaoD('')
+      setBancaInput('')
     },
   })
 
+  // Importar lote de questões via texto ou PDF
+  async function handleImportBatchQuestions() {
+    if (!user || !importText.trim()) return
+    setIsImporting(true)
+    try {
+      const targetMateriaId = importMateriaId || materias[0]?.$id || 'geral'
+
+      // Divisão simples de blocos de texto em questões
+      const questionBlocks = importText
+        .split(/(?=Questão \d+|QUESTÃO \d+|\n\d+[\.\)])/i)
+        .filter(b => b.trim().length > 10)
+
+      for (const block of questionBlocks) {
+        try {
+          await createQuestao(user.$id, {
+            enunciado: block.trim(),
+            tipo: 'objetiva',
+            materia_id: targetMateriaId,
+            dificuldade: 'medio',
+            gabarito: 'A',
+            banca: 'Importada',
+          })
+        } catch (e) {
+          console.error('Erro ao importar questão do lote:', e)
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['questoes'] })
+      setShowImportModal(false)
+      setImportText('')
+    } catch (err) {
+      console.error('Erro ao importar lote de questões:', err)
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   if (userLoading || loadingQuestoes || loadingSimulados) return <AppShell><PageLoading /></AppShell>
 
-  const filteredQuestoes = questoes.filter(q =>
-    q.enunciado.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const materiasMap = new Map(materias.map(m => [m.$id, m]))
+
+  const filteredQuestoes = questoes.filter(q => {
+    const matchesSearch = q.enunciado.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesMateria = selectedFilterMateria === 'todas' || q.materia_id === selectedFilterMateria
+    return matchesSearch && matchesMateria
+  })
 
   return (
     <AppShell>
@@ -80,10 +140,25 @@ export default function QuestoesPage() {
         </div>
         <div className="flex items-center gap-3">
           {activeTab === 'banco' ? (
-            <button onClick={() => setShowCreateQuestionModal(true)} className="btn-primary text-xs">
-              <Plus size={14} />
-              Nova Questão
-            </button>
+            <>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="btn-outline text-xs"
+              >
+                <Upload size={14} className="text-indigo-400" />
+                Importar Questões (PDF/Texto)
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedMateriaId(materias[0]?.$id || 'geral')
+                  setShowCreateQuestionModal(true)
+                }}
+                className="btn-primary text-xs"
+              >
+                <Plus size={14} />
+                Nova Questão
+              </button>
+            </>
           ) : (
             <Link href="/simulados/criar" className="btn-primary text-xs">
               <Plus size={14} />
@@ -116,8 +191,8 @@ export default function QuestoesPage() {
         {activeTab === 'banco' && (
           <div className="space-y-6">
             {/* Search and Filters */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -127,39 +202,68 @@ export default function QuestoesPage() {
                   className="form-input pl-10"
                 />
               </div>
+
+              {/* Seletor de Filtro de Matéria */}
+              <div className="w-full sm:w-64">
+                <select
+                  value={selectedFilterMateria}
+                  onChange={e => setSelectedFilterMateria(e.target.value)}
+                  className="form-select"
+                >
+                  <option value="todas">Todas as Matérias</option>
+                  {materias.map(m => (
+                    <option key={m.$id} value={m.$id}>{m.nome}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {filteredQuestoes.length === 0 ? (
               <EmptyState
                 icon={BookOpen}
-                title="Nenhuma questão cadastrada"
-                description="Cadastre suas próprias questões de Medicina ou importe de PDFs para treinar."
+                title="Nenhuma questão encontrada"
+                description="Cadastre suas próprias questões de Medicina com vinculação de matéria ou importe de arquivos."
                 action={{ label: 'Criar Primeira Questão', onClick: () => setShowCreateQuestionModal(true) }}
               />
             ) : (
               <div className="space-y-4">
-                {filteredQuestoes.map((q, idx) => (
-                  <motion.div
-                    key={q.$id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.03 }}
-                    className="surface p-5 hover:border-white/[0.12] transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <span className="badge-sm badge-indigo">Questão #{idx + 1}</span>
-                    </div>
-                    <p className="text-sm font-semibold text-white leading-relaxed mb-4">{q.enunciado}</p>
+                {filteredQuestoes.map((q, idx) => {
+                  const materiaObj = materiasMap.get(q.materia_id)
+                  const nomeMateria = materiaObj?.nome || 'Medicina Geral'
+                  const corMateria = materiaObj?.cor || '#6366f1'
 
-                    {/* Resposta Correta Badge */}
-                    <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
-                      <span>Gabarito: <strong className="text-emerald-400 font-bold">Opção {q.gabarito || 'A'}</strong></span>
-                      <button className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors flex items-center gap-1">
-                        Ver Opções <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                  return (
+                    <motion.div
+                      key={q.$id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="surface p-5 hover:border-white/[0.12] transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-4 mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="badge-sm badge-indigo">Questão #{idx + 1}</span>
+                          <span
+                            className="badge-sm"
+                            style={{ backgroundColor: `${corMateria}20`, color: corMateria, borderColor: `${corMateria}40` }}
+                          >
+                            {nomeMateria}
+                          </span>
+                          {q.banca && <span className="badge-sm badge-violet">{q.banca}</span>}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-white leading-relaxed mb-4">{q.enunciado}</p>
+
+                      {/* Resposta Correta Badge */}
+                      <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
+                        <span>Gabarito: <strong className="text-emerald-400 font-bold">Opção {q.gabarito || 'A'}</strong></span>
+                        <button className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors flex items-center gap-1">
+                          Ver Detalhes <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -237,6 +341,31 @@ export default function QuestoesPage() {
       >
         <div className="space-y-4">
           <div className="form-group">
+            <label className="form-label">Matéria / Disciplina</label>
+            <select
+              value={selectedMateriaId}
+              onChange={e => setSelectedMateriaId(e.target.value)}
+              className="form-select"
+            >
+              {materias.length === 0 && <option value="geral">Geral (Sem Matéria)</option>}
+              {materias.map(m => (
+                <option key={m.$id} value={m.$id}>{m.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Banca / Fonte (opcional)</label>
+            <input
+              type="text"
+              placeholder="Ex: Revalida, USMLE, Prova Interna"
+              value={bancaInput}
+              onChange={e => setBancaInput(e.target.value)}
+              className="form-input"
+            />
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Enunciado da Questão</label>
             <textarea
               rows={3}
@@ -246,6 +375,7 @@ export default function QuestoesPage() {
               className="form-textarea"
             />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="form-group">
               <label className="form-label">Opção A</label>
@@ -264,14 +394,62 @@ export default function QuestoesPage() {
               <input type="text" value={opcaoD} onChange={e => setOpcaoD(e.target.value)} className="form-input" />
             </div>
           </div>
+
           <div className="form-group">
-            <label className="form-label">Opção Correta</label>
+            <label className="form-label">Gabarito (Opção Correta)</label>
             <select value={correta} onChange={e => setCorreta(e.target.value)} className="form-select">
               <option value="A">Opção A</option>
               <option value="B">Opção B</option>
               <option value="C">Opção C</option>
               <option value="D">Opção D</option>
             </select>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Importar Questões (PDF/Texto Lote) */}
+      <Modal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Importar Questões em Lote (PDF / Texto)"
+        footer={
+          <>
+            <button onClick={() => setShowImportModal(false)} className="btn-outline text-xs">Cancelar</button>
+            <button
+              onClick={handleImportBatchQuestions}
+              disabled={isImporting || !importText.trim()}
+              className="btn-primary text-xs"
+            >
+              {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              {isImporting ? 'Processando Lote...' : 'Extrair & Cadastrar Questões'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="form-label">Vincular à Matéria</label>
+            <select
+              value={importMateriaId}
+              onChange={e => setImportMateriaId(e.target.value)}
+              className="form-select"
+            >
+              {materias.length === 0 && <option value="geral">Geral (Sem Matéria)</option>}
+              {materias.map(m => (
+                <option key={m.$id} value={m.$id}>{m.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Cole o Conteúdo das Questões (Texto / Prova / PDF Copiado)</label>
+            <textarea
+              rows={8}
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              placeholder="Cole aqui o texto da prova ou questões (Ex: Questão 1. Homem de 45 anos...)"
+              className="form-textarea font-mono text-xs"
+            />
           </div>
         </div>
       </Modal>
