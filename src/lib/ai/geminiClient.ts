@@ -1,13 +1,14 @@
 /**
  * Client de IA Principal — OpenRouter (Modelos Gratuitos)
- * Alterna automaticamente entre os melhores modelos 100% gratuitos do OpenRouter em caso de instabilidade ou limite.
+ * Alterna automaticamente entre os modelos 100% gratuitos do OpenRouter em caso de instabilidade.
  */
 
 const OPENROUTER_FREE_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'deepseek/deepseek-r1:free',
-  'qwen/qwen-2.5-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
+  'openrouter/free',
+  'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'openai/gpt-oss-20b:free',
 ]
 
 export async function generateContentWithFallback(options: {
