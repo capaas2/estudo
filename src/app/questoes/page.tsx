@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import {
   HelpCircle, Plus, Search, Filter, BookOpen, ClipboardList,
-  CheckCircle2, Clock, Award, ArrowRight, Sparkles, ChevronRight, FileText, Upload, Loader2,
+  CheckCircle2, Clock, Award, ArrowRight, Sparkles, ChevronRight, FileText, Upload, Loader2, Globe, Lock,
 } from 'lucide-react'
 
 export default function QuestoesPage() {
@@ -35,11 +35,13 @@ export default function QuestoesPage() {
   const [correta, setCorreta] = useState('A')
   const [selectedMateriaId, setSelectedMateriaId] = useState<string>('')
   const [bancaInput, setBancaInput] = useState<string>('')
+  const [isPublica, setIsPublica] = useState<boolean>(false)
 
   // Modal Importar Questões (PDF/Texto Lote)
   const [showImportModal, setShowImportModal] = useState(false)
   const [importText, setImportText] = useState('')
   const [importMateriaId, setImportMateriaId] = useState('')
+  const [importIsPublica, setImportIsPublica] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
 
   const { data: materias = [] } = useQuery({
@@ -68,6 +70,7 @@ export default function QuestoesPage() {
       dificuldade: 'medio',
       gabarito: correta,
       banca: bancaInput || 'Própria',
+      is_publica: isPublica,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['questoes'] })
@@ -78,6 +81,7 @@ export default function QuestoesPage() {
       setOpcaoC('')
       setOpcaoD('')
       setBancaInput('')
+      setIsPublica(false)
     },
   })
 
@@ -88,7 +92,6 @@ export default function QuestoesPage() {
     try {
       const targetMateriaId = importMateriaId || materias[0]?.$id || 'geral'
 
-      // Divisão simples de blocos de texto em questões
       const questionBlocks = importText
         .split(/(?=Questão \d+|QUESTÃO \d+|\n\d+[\.\)])/i)
         .filter(b => b.trim().length > 10)
@@ -102,6 +105,7 @@ export default function QuestoesPage() {
             dificuldade: 'medio',
             gabarito: 'A',
             banca: 'Importada',
+            is_publica: importIsPublica,
           })
         } catch (e) {
           console.error('Erro ao importar questão do lote:', e)
@@ -231,6 +235,7 @@ export default function QuestoesPage() {
                   const materiaObj = materiasMap.get(q.materia_id)
                   const nomeMateria = materiaObj?.nome || 'Medicina Geral'
                   const corMateria = materiaObj?.cor || '#6366f1'
+                  const ePublica = q.is_publica === true
 
                   return (
                     <motion.div
@@ -241,7 +246,7 @@ export default function QuestoesPage() {
                       className="surface p-5 hover:border-white/[0.12] transition-all"
                     >
                       <div className="flex items-center justify-between gap-4 mb-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="badge-sm badge-indigo">Questão #{idx + 1}</span>
                           <span
                             className="badge-sm"
@@ -250,6 +255,17 @@ export default function QuestoesPage() {
                             {nomeMateria}
                           </span>
                           {q.banca && <span className="badge-sm badge-violet">{q.banca}</span>}
+
+                          {/* Visibilidade Badge */}
+                          {ePublica ? (
+                            <span className="badge-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                              <Globe size={10} /> Pública (Todos os Alunos)
+                            </span>
+                          ) : (
+                            <span className="badge-sm bg-slate-500/10 text-slate-400 border border-slate-500/20 inline-flex items-center gap-1">
+                              <Lock size={10} /> Privada (Apenas Você)
+                            </span>
+                          )}
                         </div>
                       </div>
                       <p className="text-sm font-semibold text-white leading-relaxed mb-4">{q.enunciado}</p>
@@ -355,6 +371,35 @@ export default function QuestoesPage() {
           </div>
 
           <div className="form-group">
+            <label className="form-label">Visibilidade da Questão</label>
+            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibilidade"
+                  checked={!isPublica}
+                  onChange={() => setIsPublica(false)}
+                  className="accent-indigo-500"
+                />
+                <Lock size={14} className="text-slate-400" />
+                <span>Privada (Apenas para mim)</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibilidade"
+                  checked={isPublica}
+                  onChange={() => setIsPublica(true)}
+                  className="accent-indigo-500"
+                />
+                <Globe size={14} className="text-indigo-400" />
+                <span>Pública (Para Todos os Alunos)</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Banca / Fonte (opcional)</label>
             <input
               type="text"
@@ -442,12 +487,41 @@ export default function QuestoesPage() {
           </div>
 
           <div className="form-group">
+            <label className="form-label">Visibilidade das Questões do Lote</label>
+            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibilidadeImport"
+                  checked={!importIsPublica}
+                  onChange={() => setImportIsPublica(false)}
+                  className="accent-indigo-500"
+                />
+                <Lock size={14} className="text-slate-400" />
+                <span>Privadas (Apenas para mim)</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibilidadeImport"
+                  checked={importIsPublica}
+                  onChange={() => setImportIsPublica(true)}
+                  className="accent-indigo-500"
+                />
+                <Globe size={14} className="text-indigo-400" />
+                <span>Públicas (Para Todos os Alunos)</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Cole o Conteúdo das Questões (Texto / Prova / PDF Copiado)</label>
             <textarea
               rows={8}
               value={importText}
               onChange={e => setImportText(e.target.value)}
-              placeholder="Cole aqui o texto da prova ou questões (Ex: Questão 1. Homem de 45 anos...)"
+              placeholder="Cole aqui o texto da prova ou questões..."
               className="form-textarea font-mono text-xs"
             />
           </div>

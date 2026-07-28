@@ -74,6 +74,7 @@ export interface Questao extends AppwriteDocument {
   ano?: number
   instituicao?: string
   favorita?: boolean
+  is_publica?: boolean
 }
 
 export interface Simulado extends AppwriteDocument {
