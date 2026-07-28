@@ -1,36 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { generateContentWithFallback } from '@/lib/ai/geminiClient'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const apiKey = process.env.GEMINI_API_KEY
+    const { prompt, systemPrompt } = await request.json()
 
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
+    if (!prompt) {
+      return NextResponse.json({ error: 'Envie o campo "prompt"' }, { status: 400 })
     }
 
-    const model = 'gemini-2.0-flash'
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const text = await generateContentWithFallback({
+      systemPrompt,
+      prompt,
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Gemini API error:', response.status, errorText)
-      return NextResponse.json(
-        { error: `Gemini API error: ${response.status}` },
-        { status: response.status }
-      )
-    }
-
-    const data = await response.json()
-    return NextResponse.json(data)
-  } catch (error) {
-    console.error('Gemini route error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ text, candidates: [{ content: { parts: [{ text }] } }] })
+  } catch (error: any) {
+    console.error('OpenRouter IA route error:', error)
+    return NextResponse.json({ error: error?.message || 'Erro ao processar IA' }, { status: 500 })
   }
 }

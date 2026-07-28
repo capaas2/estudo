@@ -1,13 +1,13 @@
 /**
- * Client de IA Resiliente com Fallback em Cadeia para Gemini / OpenRouter.
- * Trata automaticamente erros de Rate Limit (HTTP 429) e falhas de modelo.
+ * Client de IA Principal — OpenRouter (Modelos Gratuitos)
+ * Alterna automaticamente entre os melhores modelos 100% gratuitos do OpenRouter em caso de instabilidade ou limite.
  */
 
-const FALLBACK_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-1.5-pro',
+const OPENROUTER_FREE_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'deepseek/deepseek-r1:free',
+  'qwen/qwen-2.5-70b-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
 ]
 
 export async function generateContentWithFallback(options: {
@@ -16,93 +16,60 @@ export async function generateContentWithFallback(options: {
   temperature?: number
   maxTokens?: number
 }): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY não configurada no .env.local')
+    throw new Error('OPENROUTER_API_KEY não configurada no arquivo .env.local')
   }
 
-  let lastError: Error | null = null
+  let lastErrorText = ''
 
-  // Tentar os modelos em sequência caso algum retorne 429 ou erro
-  for (const model of FALLBACK_MODELS) {
+  for (const model of OPENROUTER_FREE_MODELS) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
-      const body: any = {
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: options.prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: options.temperature ?? 0.7,
-          maxOutputTokens: options.maxTokens ?? 2048,
-        },
-      }
-
+      const messages = []
       if (options.systemPrompt) {
-        body.systemInstruction = { parts: [{ text: options.systemPrompt }] }
+        messages.push({ role: 'system', content: options.systemPrompt })
       }
+      messages.push({ role: 'user', content: options.prompt })
 
-      const response = await fetch(url, {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://studypro.app',
+          'X-Title': 'StudyPro v4',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 2048,
+        }),
       })
 
       if (response.status === 429) {
-        console.warn(`[IA Fallback] Modelo ${model} retornou HTTP 429 (Rate Limit). Tentando modelo secundário...`)
-        // Aguarda 800ms antes de tentar o próximo modelo para liberar cota
-        await new Promise(res => setTimeout(res, 800))
+        console.warn(`[OpenRouter IA] Modelo ${model} atingiu taxa limite (429). Tentando próximo modelo gratuito...`)
+        await new Promise(res => setTimeout(res, 600))
         continue
       }
 
       if (!response.ok) {
-        const errText = await response.text()
-        console.warn(`[IA Fallback] Erro no modelo ${model} (${response.status}): ${errText}`)
+        const errBody = await response.text()
+        console.warn(`[OpenRouter IA] Erro no modelo ${model} (${response.status}): ${errBody}`)
+        lastErrorText = `Erro ${response.status}: ${errBody}`
         continue
       }
 
       const data = await response.json()
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      const text = data?.choices?.[0]?.message?.content
       if (text && text.trim().length > 0) {
-        return text
+        return text.trim()
       }
     } catch (err: any) {
-      console.warn(`[IA Fallback] Exceção ao chamar modelo ${model}:`, err)
-      lastError = err
+      console.warn(`[OpenRouter IA] Exceção ao invocar modelo ${model}:`, err)
+      lastErrorText = err?.message || 'Erro de conexão'
     }
   }
 
-  // Tentar fallback via OpenRouter se configurado
-  const openRouterKey = process.env.OPENROUTER_API_KEY
-  if (openRouterKey) {
-    try {
-      console.info('[IA Fallback] Tentando rota OpenRouter como último recurso...')
-      const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openRouterKey}`,
-        },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-3.3-70b-instruct:free',
-          messages: [
-            ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
-            { role: 'user', content: options.prompt },
-          ],
-        }),
-      })
-
-      if (orRes.ok) {
-        const orData = await orRes.json()
-        const text = orData?.choices?.[0]?.message?.content
-        if (text) return text
-      }
-    } catch (errOr) {
-      console.warn('[IA Fallback] Erro ao chamar OpenRouter fallback:', errOr)
-    }
-  }
-
-  throw lastError || new Error('Todas as tentativas de IA retornaram erro 429 (Limite de requisições por minuto atingido). Aguarde alguns segundos.')
+  throw new Error(`OpenRouter erro em todos os modelos gratuitos: ${lastErrorText || 'Tente novamente em instantes.'}`)
 }
