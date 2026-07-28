@@ -28,16 +28,16 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
   const MAX_SIZE_BYTES = 300 * 1024 * 1024 // 300 MB
 
   const { data: filesResponse, isLoading, refetch } = useQuery({
-    queryKey: ['files', user?.$id],
-    queryFn: () => listFiles(),
-    enabled: !!user,
+    queryKey: ['files', user?.$id, materiaId],
+    queryFn: () => listFiles(materiaId, user!.$id),
+    enabled: !!user && !!materiaId,
   })
 
   const files = filesResponse?.files || []
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const fileList = e.target.files
-    if (!fileList || fileList.length === 0) return
+    if (!fileList || fileList.length === 0 || !user) return
 
     setErrorMessage('')
     setUploading(true)
@@ -47,7 +47,7 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
           setErrorMessage(`O arquivo ${file.name} excede o limite de 300MB (${(file.size / (1024 * 1024)).toFixed(1)}MB).`)
           continue
         }
-        await uploadFile(file)
+        await uploadFile(file, materiaId, user.$id, isPublic)
       }
       refetch()
     } catch (err) {
@@ -60,8 +60,9 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
   }
 
   async function handleDelete(fileId: string) {
+    if (!user) return
     try {
-      await deleteFile(fileId)
+      await deleteFile(fileId, user.$id)
       refetch()
     } catch (err) {
       console.error('Erro ao deletar:', err)
@@ -92,7 +93,7 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
         </div>
         <div className="text-center">
           <p className="text-sm text-slate-200 font-semibold">
-            {uploading ? 'Fazendo upload...' : 'Clique ou arraste arquivos da matéria aqui'}
+            {uploading ? 'Fazendo upload...' : 'Clique ou arraste arquivos desta matéria aqui'}
           </p>
           <p className="text-xs text-slate-400 mt-1">PDFs, livros, slides, imagens e documentos — <strong className="text-indigo-300 font-semibold">até 300 MB por arquivo</strong></p>
         </div>
@@ -109,7 +110,7 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
                 className="accent-indigo-500"
               />
               <Lock size={13} className="text-slate-400" />
-              <span>Privado (Apenas Você)</span>
+              <span>Privado (Apenas nesta Matéria)</span>
             </label>
 
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-200 cursor-pointer">
@@ -153,7 +154,7 @@ export default function FilesTab({ materiaId }: FilesTabProps) {
         <EmptyState
           icon={FolderOpen}
           title="Nenhum arquivo nesta matéria"
-          description="Faça upload de PDFs, imagens e livros da matéria de até 300MB."
+          description="Faça upload de PDFs, imagens e livros exclusivos para esta matéria de até 300MB."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

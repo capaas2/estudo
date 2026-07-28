@@ -21,7 +21,7 @@ export default function ArquivosPage() {
 
   const { data: filesResponse, isLoading, refetch } = useQuery({
     queryKey: ['files', user?.$id],
-    queryFn: () => listFiles(),
+    queryFn: () => listFiles('all', user!.$id),
     enabled: !!user,
   })
 
@@ -29,11 +29,11 @@ export default function ArquivosPage() {
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const fileList = e.target.files
-    if (!fileList || fileList.length === 0) return
+    if (!fileList || fileList.length === 0 || !user) return
     setUploading(true)
     try {
       for (const file of Array.from(fileList)) {
-        await uploadFile(file)
+        await uploadFile(file, 'geral', user.$id)
       }
       refetch()
     } catch (err) {
@@ -45,8 +45,9 @@ export default function ArquivosPage() {
   }
 
   async function handleDelete(fileId: string) {
+    if (!user) return
     try {
-      await deleteFile(fileId)
+      await deleteFile(fileId, user.$id)
       refetch()
     } catch (err) {
       console.error('Erro ao deletar:', err)
