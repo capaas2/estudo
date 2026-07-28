@@ -1,14 +1,13 @@
 /**
- * Client de IA Principal — OpenRouter (Modelos Gratuitos)
- * Alterna automaticamente entre os modelos 100% gratuitos do OpenRouter em caso de instabilidade.
+ * Client de IA Principal — OpenRouter (Qwen3.7 Flash + MiMo-V2.5 + Fallback)
+ * Modelo ultra-barato e rápido: Qwen3.7 Flash ($0,03/M input | $0,13/M output | 1M Context).
  */
 
-const OPENROUTER_FREE_MODELS = [
-  'openrouter/free',
+const OPENROUTER_MODELS = [
+  'qwen/qwen3.7-flash',            // Modelo Principal Super Barato ($0.03 / $0.13)
+  'xiaomi/mimo-v2.5',              // Modelo Secundário Multimodal ($0.112 / $0.224)
+  'openrouter/free',               // Fallback Roteador Gratuito
   'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'google/gemma-4-26b-a4b-it:free',
-  'openai/gpt-oss-20b:free',
 ]
 
 export async function generateContentWithFallback(options: {
@@ -24,7 +23,7 @@ export async function generateContentWithFallback(options: {
 
   let lastErrorText = ''
 
-  for (const model of OPENROUTER_FREE_MODELS) {
+  for (const model of OPENROUTER_MODELS) {
     try {
       const messages = []
       if (options.systemPrompt) {
@@ -49,7 +48,7 @@ export async function generateContentWithFallback(options: {
       })
 
       if (response.status === 429) {
-        console.warn(`[OpenRouter IA] Modelo ${model} atingiu taxa limite (429). Tentando próximo modelo gratuito...`)
+        console.warn(`[OpenRouter IA] Modelo ${model} atingiu taxa limite (429). Tentando próximo modelo...`)
         await new Promise(res => setTimeout(res, 600))
         continue
       }
@@ -72,5 +71,5 @@ export async function generateContentWithFallback(options: {
     }
   }
 
-  throw new Error(`OpenRouter erro em todos os modelos gratuitos: ${lastErrorText || 'Tente novamente em instantes.'}`)
+  throw new Error(`OpenRouter erro em todos os modelos: ${lastErrorText || 'Tente novamente em instantes.'}`)
 }
