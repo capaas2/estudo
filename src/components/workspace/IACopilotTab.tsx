@@ -9,6 +9,7 @@ import {
   Sparkles, Send, Bot, User, Loader2, FileText,
   Lightbulb, ChevronDown, Layers, Wand2,
 } from 'lucide-react'
+import MarkdownView from '@/components/shared/MarkdownView'
 import type { Note } from '@/types/database'
 
 interface IACopilotTabProps {
@@ -143,8 +144,12 @@ export default function IACopilotTab({ materiaId, materiaNome }: IACopilotTabPro
                 </div>
               )}
               <div className="max-w-[80%]">
-                <div className={`rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-cyan-500/10 border border-cyan-500/20 text-slate-200' : 'bg-white/[0.03] border border-white/[0.06] text-slate-300'}`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <div className={`rounded-2xl px-5 py-4 ${msg.role === 'user' ? 'bg-cyan-500/10 border border-cyan-500/20 text-slate-200' : 'bg-white/[0.03] border border-white/[0.06] text-slate-300'}`}>
+                  {msg.role === 'user' ? (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  ) : (
+                    <MarkdownView content={msg.content} />
+                  )}
                 </div>
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="mt-1">
