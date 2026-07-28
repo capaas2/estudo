@@ -3,6 +3,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listPeriods, createPeriod, deletePeriod } from '@/services/database/periods'
+import { createMateria, createSubjectWorkspace } from '@/services/database/materias'
 import AppShell from '@/components/layout/AppShell'
 import EmptyState from '@/components/shared/EmptyState'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
@@ -12,29 +13,34 @@ import Link from 'next/link'
 import { useState } from 'react'
 import {
   GraduationCap, Plus, ChevronRight, Trash2, BookOpen,
-  CheckCircle, Clock, Circle, Sparkles, Loader2,
+  CheckCircle, Clock, Circle, Sparkles, Loader2, Award,
 } from 'lucide-react'
-import { createMateria, createSubjectWorkspace } from '@/services/database/materias'
 import type { Period } from '@/types/database'
 
-const statusConfig: Record<Period['status'], { label: string; color: string; icon: typeof CheckCircle }> = {
-  nao_iniciado: { label: 'Não Iniciado', color: 'slate', icon: Circle },
-  em_andamento: { label: 'Em Andamento', color: 'cyan', icon: Clock },
-  concluido: { label: 'Concluído', color: 'emerald', icon: CheckCircle },
+const statusConfig: Record<Period['status'], { label: string; badge: string; icon: typeof CheckCircle }> = {
+  nao_iniciado: { label: 'Não Iniciado', badge: 'badge-indigo', icon: Circle },
+  em_andamento: { label: 'Em Andamento', badge: 'badge-warning', icon: Clock },
+  concluido: { label: 'Concluído', badge: 'badge-success', icon: CheckCircle },
 }
 
-const SUGESTAO_MEDICINA = [
-  { periodo: 1, materias: ['Anatomia Humana', 'Biologia Celular', 'Histologia', 'Embriologia', 'Bioquímica', 'Introdução à Medicina'] },
-  { periodo: 2, materias: ['Anatomia II', 'Fisiologia I', 'Histologia II', 'Bioquímica II', 'Genética', 'Saúde Coletiva'] },
-  { periodo: 3, materias: ['Fisiologia II', 'Microbiologia', 'Imunologia', 'Parasitologia', 'Patologia Geral', 'Farmacologia I'] },
-  { periodo: 4, materias: ['Patologia Especial', 'Farmacologia II', 'Semiologia Médica I', 'Saúde Mental', 'Epidemiologia', 'Bioética'] },
-  { periodo: 5, materias: ['Semiologia Médica II', 'Propedêutica', 'Clínica Médica I', 'Cirurgia I', 'Pediatria I', 'Ginecologia'] },
-  { periodo: 6, materias: ['Clínica Médica II', 'Cirurgia II', 'Pediatria II', 'Obstetrícia', 'Ortopedia', 'Oftalmologia'] },
+const CURRICULO_MEDICINA_12 = [
+  { periodo: 1, nome: "1º Período – Morfologia & Bioquímica", materias: ['Anatomia Humana I', 'Biologia Celular', 'Histologia e Embriologia I', 'Bioquímica I', 'Introdução à Medicina', 'Metodologia Científica'] },
+  { periodo: 2, nome: "2º Período – Fisiologia & Genética", materias: ['Anatomia Humana II', 'Fisiologia Humana I', 'Histologia e Embriologia II', 'Bioquímica II', 'Genética Médica', 'Psicologia Médica'] },
+  { periodo: 3, nome: "3º Período – Agentes & Defesa", materias: ['Fisiologia Humana II', 'Microbiologia Médica', 'Imunologia', 'Parasitologia Médica', 'Patologia Geral', 'Farmacologia I'] },
+  { periodo: 4, nome: "4º Período – Bases da Clínica & Patologia", materias: ['Patologia Especial', 'Farmacologia II', 'Semiologia Médica I', 'Saúde Mental I', 'Epidemiologia e Bioestatística', 'Bioética'] },
+  { periodo: 5, nome: "5º Período – Propedêutica & Clínica I", materias: ['Semiologia Médica II', 'Clínica Médica I', 'Cirurgia I', 'Pediatria I', 'Ginecologia e Obstetrícia I', 'Medicina Legal'] },
+  { periodo: 6, nome: "6º Período – Clínica Integrada I", materias: ['Clínica Médica II', 'Cirurgia II', 'Pediatria II', 'Ginecologia e Obstetrícia II', 'Ortopedia', 'Oftalmologia'] },
+  { periodo: 7, nome: "7º Período – Especialidades Médicas I", materias: ['Clínica Médica III', 'Emergências Médicas', 'Dermatologia', 'Otorrinolaringologia', 'Urologia', 'Neurologia'] },
+  { periodo: 8, nome: "8º Período – Especialidades Médicas II", materias: ['Clínica Médica IV', 'Cirurgia III', 'Psiquiatria II', 'Anestesiologia', 'Geriatria', 'Medicina de Família'] },
+  { periodo: 9, nome: "9º Período – Internato I (Clínica e Cirurgia)", materias: ['Estágio em Clínica Médica', 'Estágio em Cirurgia Geral', 'Estágio em Pediatria I'] },
+  { periodo: 10, nome: "10º Período – Internato II (GO & Saúde Pública)", materias: ['Estágio em Ginecologia e Obstetrícia', 'Estágio em Saúde Coletiva', 'Estágio em Saúde Mental'] },
+  { periodo: 11, nome: "11º Período – Internato III (Urgência & Eletivo)", materias: ['Estágio em Urgência e Emergência', 'Estágio em Medicina de Família II', 'Estágio Eletivo I'] },
+  { periodo: 12, nome: "12º Período – Internato IV (UTI & TCC)", materias: ['Estágio em UTI', 'Estágio Ambulatorial Geral', 'Estágio Eletivo II', 'TCC Medicina'] },
 ]
 
 const CORES_MATERIAS = [
-  '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#f43f5e',
-  '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
+  '#6366f1', '#8b5cf6', '#34d399', '#fbbf24', '#f43f5e',
+  '#3b82f6', '#ec4899', '#14b8a6', '#f97316', '#a855f7',
 ]
 
 export default function PeriodosPage() {
@@ -73,10 +79,10 @@ export default function PeriodosPage() {
     if (!user) return
     setImportingMedicina(true)
     try {
-      for (const item of SUGESTAO_MEDICINA) {
+      for (const item of CURRICULO_MEDICINA_12) {
         const periodDoc = await createPeriod(user.$id, {
           numero: item.periodo,
-          nome: `${item.periodo}º Período - Medicina`,
+          nome: item.nome,
           status: item.periodo === 1 ? 'em_andamento' : 'nao_iniciado',
         })
         for (let j = 0; j < item.materias.length; j++) {
@@ -104,92 +110,97 @@ export default function PeriodosPage() {
     <AppShell>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Períodos</h1>
-          <p className="page-subtitle">{periods.length} período{periods.length !== 1 ? 's' : ''} cadastrado{periods.length !== 1 ? 's' : ''}</p>
+          <h1 className="page-title">Meus Estudos & Períodos</h1>
+          <p className="page-subtitle">Grade Curricular de Medicina — {periods.length} período{periods.length !== 1 ? 's' : ''} cadastrado{periods.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={handleImportMedicina}
             disabled={importingMedicina}
-            className="btn-secondary text-xs"
-            title="Importa os 6 períodos e matérias padrão de Medicina"
+            className="btn-outline text-xs"
+            title="Importa os 12 períodos padrão MEC de Medicina"
           >
             {importingMedicina ? (
-              <Loader2 size={14} className="animate-spin text-cyan-400" />
+              <Loader2 size={14} className="animate-spin text-indigo-400" />
             ) : (
               <Sparkles size={14} className="text-amber-400" />
             )}
-            {importingMedicina ? 'Importando...' : 'Importar Grade Medicina'}
+            {importingMedicina ? 'Importando Grade (12 períodos)...' : 'Importar Grade Medicina (12 Períodos)'}
           </button>
-          <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-premium text-xs">
+          <button onClick={() => { setNewNumero(periods.length + 1); setShowCreateModal(true) }} className="btn-primary text-xs">
             <Plus size={14} />
             Novo Período
           </button>
         </div>
       </div>
+
       <div className="page-body">
         {periods.length === 0 ? (
           <EmptyState
             icon={GraduationCap}
-            title="Nenhum período encontrado"
-            description="Crie um período manualmente ou importe a grade padrão de Medicina em 1 clique."
-            action={{ label: importingMedicina ? 'Importando...' : 'Importar Grade Medicina', onClick: handleImportMedicina }}
+            title="Nenhum período cadastrado"
+            description="Importe com 1 clique o currículo padrão de Medicina de 12 períodos (Ciclo Básico, Clínico e Internato)."
+            action={{ label: importingMedicina ? 'Importando...' : 'Importar Grade Medicina (12 Períodos)', onClick: handleImportMedicina }}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <AnimatePresence>
               {periods.map((period, i) => {
-                const config = statusConfig[period.status]
+                const config = statusConfig[period.status] || statusConfig.nao_iniciado
+                const isInternato = period.numero >= 9
+
                 return (
                   <motion.div
                     key={period.$id}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                    transition={{ delay: i * 0.04 }}
                   >
                     <Link
                       href={`/periodos/${period.$id}`}
-                      className="glass-card-hover p-5 block group"
+                      className="surface-interactive p-5 block group relative overflow-hidden"
                     >
+                      {isInternato && (
+                        <div className="absolute top-0 right-0 px-3 py-1 bg-amber-500/10 border-b border-l border-amber-500/20 text-amber-400 text-[0.65rem] font-bold uppercase tracking-wider rounded-bl-xl">
+                          Internato
+                        </div>
+                      )}
+
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-violet-500/10 flex items-center justify-center">
-                            <GraduationCap size={22} className="text-cyan-400" />
+                          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                            {isInternato ? <Award size={22} /> : <GraduationCap size={22} />}
                           </div>
                           <div>
-                            <h3 className="text-base font-bold text-slate-100">{period.nome}</h3>
-                            <span className={`badge-sm badge-${config.color} mt-1`}>
-                              <config.icon size={10} className="mr-1" />
+                            <h3 className="text-base font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">{period.nome}</h3>
+                            <span className={`badge-sm ${config.badge} mt-1 inline-flex items-center gap-1`}>
+                              <config.icon size={10} />
                               {config.label}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
-                            className="btn-icon text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                          <ChevronRight size={16} className="text-slate-600 group-hover:text-cyan-400 transition-colors" />
-                        </div>
+                        <button
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); deleteMutation.mutate(period.$id) }}
+                          className="btn-icon text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
 
-                      <div className="mb-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-slate-500">Progresso</span>
-                          <span className="text-xs font-semibold text-cyan-400">{period.progresso || 0}%</span>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-medium">Progresso do Período</span>
+                          <span className="font-bold text-indigo-400">{period.progresso || 0}%</span>
                         </div>
                         <div className="progress-bar">
                           <div className="progress-bar-fill" style={{ width: `${period.progresso || 0}%` }} />
                         </div>
                       </div>
 
-                      {period.meta_horas_semana && period.meta_horas_semana > 0 && (
-                        <p className="text-[0.65rem] text-slate-600">
-                          Meta: {period.meta_horas_semana}h/semana
-                        </p>
-                      )}
+                      <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400">
+                        <span>Acessar matérias</span>
+                        <ChevronRight size={15} className="text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
+                      </div>
                     </Link>
                   </motion.div>
                 )
@@ -199,18 +210,18 @@ export default function PeriodosPage() {
         )}
       </div>
 
-      {/* Create Modal */}
+      {/* Modal Criar Período */}
       <Modal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Novo Período"
+        title="Criar Período Manualmente"
         footer={
           <>
-            <button onClick={() => setShowCreateModal(false)} className="btn-secondary text-xs">Cancelar</button>
+            <button onClick={() => setShowCreateModal(false)} className="btn-outline text-xs">Cancelar</button>
             <button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending}
-              className="btn-premium text-xs"
+              className="btn-primary text-xs"
             >
               {createMutation.isPending ? 'Criando...' : 'Criar Período'}
             </button>
@@ -219,7 +230,7 @@ export default function PeriodosPage() {
       >
         <div className="space-y-4">
           <div className="form-group">
-            <label className="form-label">Número</label>
+            <label className="form-label">Número do Período</label>
             <input
               type="number"
               value={newNumero}
@@ -230,7 +241,7 @@ export default function PeriodosPage() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Nome (opcional)</label>
+            <label className="form-label">Nome do Período</label>
             <input
               type="text"
               value={newNome}

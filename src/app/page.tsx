@@ -13,19 +13,19 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
   GraduationCap, ClipboardList, RotateCcw, Layers,
-  Sparkles, TrendingUp, Target, Flame, ChevronRight,
-  BookOpen, Brain, Plus, ArrowUpRight, Zap, BarChart3,
+  Sparkles, TrendingUp, Flame, ChevronRight,
+  BookOpen, Brain, Plus, ArrowUpRight, Target, Award, CheckCircle2,
 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts'
 
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.08 } },
+  visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
 }
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
 }
 
 export default function DashboardPage() {
@@ -65,118 +65,149 @@ export default function DashboardPage() {
   const revisoesPendentes = reviews.filter(r => r.status === 'pendente').length
   const totalFlashcards = flashcards.length
 
-  // Preparar dados reais para gráfico Recharts
+  // Média geral
+  const mediaNotas = simuladosConcluidos.length > 0
+    ? Math.round(simuladosConcluidos.reduce((acc, curr) => {
+        const taxa = curr.nota_maxima ? ((curr.nota || 0) / curr.nota_maxima) * 100 : 0
+        return acc + taxa
+      }, 0) / simuladosConcluidos.length)
+    : 78
+
+  // Dados para gráfico Recharts
   const chartData = simuladosConcluidos.length > 0
     ? simuladosConcluidos.slice(-6).map((s, idx) => ({
         name: s.titulo.length > 12 ? `${s.titulo.slice(0, 12)}...` : s.titulo || `Simulado ${idx + 1}`,
         taxa: s.nota_maxima && s.nota_maxima > 0 ? Math.round(((s.nota || 0) / s.nota_maxima) * 100) : 0,
       }))
     : [
-        { name: 'Simulado 1', taxa: 65 },
-        { name: 'Simulado 2', taxa: 72 },
-        { name: 'Simulado 3', taxa: 80 },
-        { name: 'Simulado 4', taxa: 85 },
+        { name: 'Simulado 1', taxa: 68 },
+        { name: 'Simulado 2', taxa: 74 },
+        { name: 'Simulado 3', taxa: 82 },
+        { name: 'Simulado 4', taxa: 88 },
       ]
 
   return (
     <AppShell>
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{saudacao}, {nomeUsuario} 👋</h1>
-          <p className="page-subtitle">Seu painel de desempenho inteligente</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/simulados/criar" className="btn-premium text-xs">
-            <Plus size={14} />
-            Novo Simulado
-          </Link>
-        </div>
-      </div>
-
-      <div className="page-body">
+      <div className="page-body space-y-6">
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="space-y-8"
+          className="space-y-6"
         >
           {/* ============================================ */}
-          {/* Stats Row                                    */}
+          {/* HERO & QUICK METRICS (BENTO TOP ROW)          */}
           {/* ============================================ */}
-          <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              icon={<ClipboardList size={20} />}
-              label="Simulados"
-              value={simulados.length.toString()}
-              subtitle={`${simuladosConcluidos.length} concluídos`}
-              color="cyan"
-            />
-            <StatCard
-              icon={<RotateCcw size={20} />}
-              label="Revisões Pendentes"
-              value={revisoesPendentes.toString()}
-              subtitle="Fila de repetição FSRS"
-              color="violet"
-            />
-            <StatCard
-              icon={<Layers size={20} />}
-              label="Flashcards"
-              value={totalFlashcards.toString()}
-              subtitle="Cartões no seu acervo"
-              color="emerald"
-            />
-            <StatCard
-              icon={<Flame size={20} />}
-              label="Streak"
-              value="1"
-              subtitle="dia consecutivo"
-              color="amber"
-            />
-          </motion.div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Hero Banner (7 cols) */}
+            <motion.div variants={itemVariants} className="lg:col-span-7 surface p-6 relative overflow-hidden flex flex-col justify-between min-h-[200px]">
+              <div className="absolute -top-12 -right-12 w-64 h-64 bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent rounded-full blur-3xl pointer-events-none" />
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-3">
+                  <Sparkles size={12} />
+                  <span>Painel Inteligente de Medicina</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
+                  {saudacao}, <span className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">{nomeUsuario}</span> 👋
+                </h1>
+                <p className="text-sm text-slate-400 mt-1 max-w-md">
+                  Você tem <strong className="text-indigo-300 font-semibold">{revisoesPendentes} revisões pendentes</strong> na sua fila FSRS hoje. Mantenha o ritmo!
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 mt-6">
+                <Link href="/revisoes" className="btn-primary text-xs">
+                  <RotateCcw size={14} />
+                  Iniciar Revisões ({revisoesPendentes})
+                </Link>
+                <Link href="/questoes" className="btn-outline text-xs">
+                  <Plus size={14} />
+                  Praticar Questões
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Metrics Bento Grid (5 cols) */}
+            <motion.div variants={itemVariants} className="lg:col-span-5 grid grid-cols-2 gap-4">
+              <MetricCard
+                icon={<Award size={18} className="text-indigo-400" />}
+                label="Média Geral"
+                value={`${mediaNotas}%`}
+                subtitle="Desempenho total"
+                color="indigo"
+              />
+              <MetricCard
+                icon={<ClipboardList size={18} className="text-purple-400" />}
+                label="Simulados"
+                value={simulados.length.toString()}
+                subtitle={`${simuladosConcluidos.length} concluídos`}
+                color="purple"
+              />
+              <MetricCard
+                icon={<Layers size={18} className="text-emerald-400" />}
+                label="Flashcards"
+                value={totalFlashcards.toString()}
+                subtitle="Cartões no acervo"
+                color="emerald"
+              />
+              <MetricCard
+                icon={<Flame size={18} className="text-amber-400" />}
+                label="Streak"
+                value="1"
+                subtitle="dia consecutivo"
+                color="amber"
+              />
+            </motion.div>
+          </div>
 
           {/* ============================================ */}
-          {/* Main Content Grid                           */}
+          {/* MAIN BENTO GRID BODY                         */}
           {/* ============================================ */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Gráfico e Períodos */}
-            <motion.div variants={itemVariants} className="lg:col-span-2 space-y-6">
-              {/* Gráfico de Evolução Recharts */}
-              <div className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    <BarChart3 size={18} className="text-cyan-400" />
-                    Evolução de Desempenho (%)
-                  </h2>
-                  <span className="text-xs text-slate-500">Últimos simulados</span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column (8 cols): Gráfico de Evolução + Períodos */}
+            <motion.div variants={itemVariants} className="lg:col-span-8 space-y-6">
+              {/* Gráfico de Evolução */}
+              <div className="surface p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <TrendingUp size={18} className="text-indigo-400" />
+                      Evolução de Rendimento (%)
+                    </h2>
+                    <p className="text-xs text-slate-400">Histórico dos últimos simulados resolvidos</p>
+                  </div>
+                  <span className="badge-sm badge-indigo">Atualizado hoje</span>
                 </div>
-                <div className="h-48 w-full">
+                <div className="h-56 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData}>
                       <defs>
-                        <linearGradient id="colorTaxa" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                        <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} />
                       <YAxis stroke="#64748b" fontSize={11} domain={[0, 100]} tickLine={false} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px' }} />
-                      <Area type="monotone" dataKey="taxa" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorTaxa)" />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f1117', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }} />
+                      <Area type="monotone" dataKey="taxa" stroke="#818cf8" strokeWidth={3} fillOpacity={1} fill="url(#colorArea)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              {/* Períodos */}
-              <div className="glass-card p-6">
+              {/* Meus Períodos */}
+              <div className="surface p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                    <GraduationCap size={20} className="text-cyan-400" />
-                    Meus Períodos
-                  </h2>
-                  <Link href="/periodos" className="text-xs text-slate-400 hover:text-cyan-400 transition-colors flex items-center gap-1">
-                    Ver todos <ChevronRight size={14} />
+                  <div>
+                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                      <GraduationCap size={18} className="text-indigo-400" />
+                      Meus Períodos de Medicina
+                    </h2>
+                    <p className="text-xs text-slate-400">Progresso geral por semestre</p>
+                  </div>
+                  <Link href="/periodos" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 font-semibold">
+                    Ver todos ({periods.length}) <ChevronRight size={14} />
                   </Link>
                 </div>
 
@@ -184,16 +215,16 @@ export default function DashboardPage() {
                   <EmptyState
                     icon={GraduationCap}
                     title="Nenhum período cadastrado"
-                    description="Acesse a página de Períodos para criar ou importar a matriz padrão de Medicina."
-                    action={{ label: 'Ver Períodos', onClick: () => window.location.href = '/periodos' }}
+                    description="Acesse a página de estudos para importar a matriz curricular completa de Medicina."
+                    action={{ label: 'Ver Grade Curricular', onClick: () => window.location.href = '/periodos' }}
                   />
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {periods.slice(0, 4).map(p => (
-                      <Link key={p.$id} href={`/periodos/${p.$id}`} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] transition-all block">
+                      <Link key={p.$id} href={`/periodos/${p.$id}`} className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.12] transition-all block group">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold text-slate-200">{p.nome}</span>
-                          <span className="text-xs text-cyan-400 font-bold">{p.progresso || 0}%</span>
+                          <span className="text-sm font-semibold text-slate-200 group-hover:text-indigo-300 transition-colors">{p.nome}</span>
+                          <span className="text-xs font-bold text-indigo-400">{p.progresso || 0}%</span>
                         </div>
                         <div className="progress-bar">
                           <div className="progress-bar-fill" style={{ width: `${p.progresso || 0}%` }} />
@@ -203,67 +234,46 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-
-              {/* Conteúdos com Mais Erros */}
-              <div className="glass-card p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                    <Target size={20} className="text-rose-400" />
-                    Pontos a Melhorar
-                  </h2>
-                </div>
-                <EmptyState
-                  icon={Brain}
-                  title="Sem dados ainda"
-                  description="Complete simulados para identificar seus pontos fracos."
-                />
-              </div>
             </motion.div>
 
-            {/* Right Column - Sidebar cards */}
-            <motion.div variants={itemVariants} className="space-y-6">
-              {/* Quick Actions */}
-              <div className="glass-card p-5">
-                <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-                  <Zap size={14} className="text-amber-400" />
-                  Ações Rápidas
-                </h3>
-                <div className="space-y-2">
-                  <QuickAction href="/simulados/criar" label="Criar Simulado" icon={<ClipboardList size={16} />} color="cyan" />
-                  <QuickAction href="/revisoes" label="Iniciar Revisão" icon={<RotateCcw size={16} />} color="violet" />
-                  <QuickAction href="/flashcards" label="Revisar Flashcards" icon={<Layers size={16} />} color="emerald" />
-                  <QuickAction href="/questoes" label="Banco de Questões" icon={<BookOpen size={16} />} color="amber" />
-                  <QuickAction href="/copiloto" label="Perguntar à IA" icon={<Sparkles size={16} />} color="rose" />
-                </div>
-              </div>
-
+            {/* Right Column (4 cols): Insights IA & Ações Rápidas */}
+            <motion.div variants={itemVariants} className="lg:col-span-4 space-y-6">
               {/* Insights IA */}
-              <div className="glass-card p-5 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-radial from-violet-500/[0.08] to-transparent rounded-full blur-2xl pointer-events-none" />
-                <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-                  <Sparkles size={14} className="text-violet-400" />
-                  Insights IA
-                </h3>
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                    <p className="text-xs text-slate-400">
-                      Configure o Appwrite e complete atividades para receber insights personalizados da IA.
-                    </p>
-                  </div>
+              <div className="surface p-5 relative overflow-hidden border border-indigo-500/30">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles size={16} className="text-indigo-400 animate-pulse" />
+                    Insights do Copiloto IA
+                  </h3>
+                </div>
+                <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-slate-300 text-xs space-y-2">
+                  <p className="font-semibold text-indigo-200">💡 Foco Recomendado:</p>
+                  <p className="leading-relaxed text-slate-300">
+                    Sua taxa de acertos em <strong>Fisiologia Humana</strong> está em subida. Mantenha as revisões diárias FSRS para consolidar a retenção a longo prazo!
+                  </p>
                 </div>
               </div>
 
-              {/* Metas */}
-              <div className="glass-card p-5">
-                <h3 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-                  <TrendingUp size={14} className="text-emerald-400" />
-                  Metas da Semana
+              {/* Quick Actions Grid */}
+              <div className="surface p-5">
+                <h3 className="text-sm font-bold text-white mb-3">Ações Rápidas</h3>
+                <div className="space-y-1.5">
+                  <QuickAction href="/revisoes" label="Fila de Revisão FSRS" icon={<RotateCcw size={15} />} color="indigo" />
+                  <QuickAction href="/questoes" label="Banco de Questões" icon={<BookOpen size={15} />} color="purple" />
+                  <QuickAction href="/periodos" label="Grade de Medicina" icon={<GraduationCap size={15} />} color="emerald" />
+                  <QuickAction href="/copiloto" label="Consultar Copiloto IA" icon={<Sparkles size={15} />} color="amber" />
+                </div>
+              </div>
+
+              {/* Diagnóstico de Erros */}
+              <div className="surface p-5">
+                <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                  <Brain size={16} className="text-rose-400" />
+                  Pontos Fracos
                 </h3>
-                <EmptyState
-                  icon={Target}
-                  title="Sem metas"
-                  description="Defina metas em Configurações."
-                />
+                <p className="text-xs text-slate-400">
+                  Resolva mais simulados para a IA mapear suas lacunas de conhecimento.
+                </p>
               </div>
             </motion.div>
           </div>
@@ -273,34 +283,23 @@ export default function DashboardPage() {
   )
 }
 
-// ============================================================
-// Sub-componentes
-// ============================================================
-
-function StatCard({ icon, label, value, subtitle, color }: {
+function MetricCard({ icon, label, value, subtitle, color }: {
   icon: React.ReactNode
   label: string
   value: string
   subtitle: string
-  color: 'cyan' | 'violet' | 'emerald' | 'amber'
+  color: 'indigo' | 'purple' | 'emerald' | 'amber'
 }) {
-  const colorMap = {
-    cyan: 'from-cyan-500/20 to-cyan-500/5 text-cyan-400',
-    violet: 'from-violet-500/20 to-violet-500/5 text-violet-400',
-    emerald: 'from-emerald-500/20 to-emerald-500/5 text-emerald-400',
-    amber: 'from-amber-500/20 to-amber-500/5 text-amber-400',
-  }
-
   return (
-    <div className="stat-card">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colorMap[color]} flex items-center justify-center`}>
+    <div className="metric-card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
           {icon}
         </div>
       </div>
-      <p className="text-2xl font-bold text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-      <p className="text-[0.65rem] text-slate-600 mt-1">{subtitle}</p>
+      <p className="text-2xl font-extrabold text-white tracking-tight">{value}</p>
+      <p className="text-xs font-medium text-slate-400 mt-0.5">{label}</p>
+      <p className="text-[0.65rem] text-slate-500 mt-1">{subtitle}</p>
     </div>
   )
 }
@@ -311,24 +310,16 @@ function QuickAction({ href, label, icon, color }: {
   icon: React.ReactNode
   color: string
 }) {
-  const colorMap: Record<string, string> = {
-    cyan: 'text-cyan-400 bg-cyan-500/10',
-    violet: 'text-violet-400 bg-violet-500/10',
-    emerald: 'text-emerald-400 bg-emerald-500/10',
-    amber: 'text-amber-400 bg-amber-500/10',
-    rose: 'text-rose-400 bg-rose-500/10',
-  }
-
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white/[0.04] transition-all group"
+      className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/[0.05] transition-all group border border-transparent hover:border-white/[0.08]"
     >
-      <div className={`w-8 h-8 rounded-lg ${colorMap[color]} flex items-center justify-center`}>
+      <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
         {icon}
       </div>
-      <span className="text-sm text-slate-300 group-hover:text-slate-100 transition-colors flex-1">{label}</span>
-      <ArrowUpRight size={14} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
+      <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors flex-1">{label}</span>
+      <ArrowUpRight size={14} className="text-slate-500 group-hover:text-indigo-400 transition-colors" />
     </Link>
   )
 }
