@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { listSubjectWorkspaces, updateSubjectWorkspace } from '@/services/database/materias'
+import { listSubjectWorkspaces, listMaterias, updateSubjectWorkspace } from '@/services/database/materias'
 import { updatePeriod } from '@/services/database/periods'
 import AppShell from '@/components/layout/AppShell'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
@@ -56,10 +56,19 @@ export default function WorkspacePage() {
     enabled: !!user && !!periodId,
   })
 
-  const currentWorkspace = workspaces.find(w => w.$id === subjectId) || workspaces[0]
+  const { data: materias = [] } = useQuery({
+    queryKey: ['materias', user?.$id],
+    queryFn: () => listMaterias(user!.$id),
+    enabled: !!user,
+  })
 
-  const materiaNome = currentWorkspace?.materia_nome || 'Disciplina de Medicina'
-  const materiaCor = currentWorkspace?.cor_override || '#6366f1'
+  const materiasMap = new Map(materias.map(m => [m.$id, m]))
+
+  const currentWorkspace = workspaces.find(w => w.$id === subjectId || w.materia_id === subjectId) || workspaces[0]
+  const materiaObj = currentWorkspace ? materiasMap.get(currentWorkspace.materia_id) : undefined
+
+  const materiaNome = currentWorkspace?.materia_nome || materiaObj?.nome || 'Disciplina de Medicina'
+  const materiaCor = currentWorkspace?.cor_override || materiaObj?.cor || '#6366f1'
 
   const [editStatus, setEditStatus] = useState<SubjectWorkspace['status']>(currentWorkspace?.status || 'cursando')
   const [editProgresso, setEditProgresso] = useState<number>(currentWorkspace?.progresso || 0)

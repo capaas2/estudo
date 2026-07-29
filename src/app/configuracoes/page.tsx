@@ -8,6 +8,7 @@ import { listQuestoes } from '@/services/database/questoes'
 import { listSimulados } from '@/services/database/simulados'
 import { listFlashcards } from '@/services/database/flashcards'
 import { listReviews } from '@/services/database/reviews'
+import { getOrUpdateStreak, getWeeklyDaysStatus } from '@/services/streakService'
 import AppShell from '@/components/layout/AppShell'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
 import Modal from '@/components/shared/Modal'
@@ -63,7 +64,11 @@ export default function ConfiguracoesPage() {
   const simuladosFeitos = simulados.length
   const flashcardsRevisados = flashcards.length
   const totalRevisoes = reviews.length
-  const streakDays = 1 // Sequência ativa hoje
+  
+  const streakData = user ? getOrUpdateStreak(user.$id) : { currentStreak: 1, accessHistory: [] }
+  const streakDays = streakData.currentStreak
+  const weeklyDaysStatus = getWeeklyDaysStatus(streakData.accessHistory)
+
   const weeklyProgressHours = Math.min(weeklyGoalHours, Math.round((simuladosFeitos * 0.5) + (totalRevisoes * 0.2)))
 
   async function handleLogout() {
@@ -228,13 +233,13 @@ export default function ConfiguracoesPage() {
                         </div>
                         <div className="flex-1">
                           <div className="grid grid-cols-7 gap-2">
-                            {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((dia, i) => (
+                            {weeklyDaysStatus.map((d, i) => (
                               <div key={i} className="text-center">
-                                <p className="text-[0.65rem] font-bold text-slate-400 mb-1">{dia}</p>
+                                <p className="text-[0.65rem] font-bold text-slate-400 mb-1">{d.dayLabel}</p>
                                 <div className={`w-8 h-8 rounded-xl mx-auto flex items-center justify-center ${
-                                  i === 0 ? 'bg-amber-500/20 border border-amber-500/40 text-amber-400 font-bold' : 'bg-white/[0.03] border border-white/[0.06] text-slate-600'
+                                  d.active ? 'bg-amber-500/20 border border-amber-500/40 text-amber-400 font-bold' : 'bg-white/[0.03] border border-white/[0.06] text-slate-600'
                                 }`}>
-                                  {i === 0 ? <Flame size={14} /> : null}
+                                  {d.active ? <Flame size={14} /> : null}
                                 </div>
                               </div>
                             ))}

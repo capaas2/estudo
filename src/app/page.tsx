@@ -7,6 +7,7 @@ import { listSimulados } from '@/services/database/simulados'
 import { listReviews } from '@/services/database/reviews'
 import { listFlashcards } from '@/services/database/flashcards'
 import { listQuestoes } from '@/services/database/questoes'
+import { getOrUpdateStreak } from '@/services/streakService'
 import AppShell from '@/components/layout/AppShell'
 import { PageLoading } from '@/components/shared/LoadingSpinner'
 import EmptyState from '@/components/shared/EmptyState'
@@ -88,6 +89,9 @@ export default function DashboardPage() {
     taxa: s.nota_maxima && s.nota_maxima > 0 ? Math.round(((s.nota || 0) / s.nota_maxima) * 100) : 0,
   }))
 
+  const streakData = user ? getOrUpdateStreak(user.$id) : { currentStreak: 1, accessHistory: [] }
+  const streakCount = streakData.currentStreak
+
   return (
     <AppShell>
       <div className="page-body space-y-6">
@@ -157,8 +161,8 @@ export default function DashboardPage() {
               <MetricCard
                 icon={<Flame size={18} className="text-amber-400" />}
                 label="Streak"
-                value="1"
-                subtitle="dia consecutivo"
+                value={streakCount.toString()}
+                subtitle={streakCount === 1 ? 'dia consecutivo' : 'dias consecutivos'}
                 color="amber"
               />
             </motion.div>

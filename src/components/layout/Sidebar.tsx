@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAppStore } from '@/stores/useAppStore'
 import { account } from '@/lib/appwrite/config'
+import { useQuery } from '@tanstack/react-query'
+import { listReviews } from '@/services/database/reviews'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, GraduationCap, RotateCcw,
@@ -12,20 +14,33 @@ import {
   ChevronLeft, ChevronRight, Sparkles,
 } from 'lucide-react'
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/periodos', label: 'Meus Estudos', icon: GraduationCap },
-  { href: '/revisoes', label: 'Revisões', icon: RotateCcw, badge: '3' },
-  { href: '/questoes', label: 'Questões & Simulados', icon: HelpCircle },
-  { href: '/copiloto', label: 'Copiloto IA', icon: Sparkles },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings },
-]
-
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { data: user } = useCurrentUser()
   const { sidebarCollapsed, toggleSidebar } = useAppStore()
+
+  const { data: reviews = [] } = useQuery({
+    queryKey: ['reviews', user?.$id],
+    queryFn: () => listReviews(user!.$id),
+    enabled: !!user,
+  })
+
+  const revisoesPendentes = reviews.filter(r => r.status === 'pendente').length
+
+  const navItems = [
+    { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/periodos', label: 'Meus Estudos', icon: GraduationCap },
+    {
+      href: '/revisoes',
+      label: 'Revisões',
+      icon: RotateCcw,
+      badge: revisoesPendentes > 0 ? revisoesPendentes.toString() : undefined,
+    },
+    { href: '/questoes', label: 'Questões & Simulados', icon: HelpCircle },
+    { href: '/copiloto', label: 'Copiloto IA', icon: Sparkles },
+    { href: '/configuracoes', label: 'Configurações', icon: Settings },
+  ]
 
   const nomeUsuario = user?.name || user?.email?.split('@')[0] || 'Estudante'
 

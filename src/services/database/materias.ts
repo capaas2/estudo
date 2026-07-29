@@ -139,6 +139,9 @@ export async function deleteMateria(materiaId: string): Promise<void> {
 // ============================================================
 
 export async function listSubjectWorkspaces(userId: string, periodId?: string): Promise<SubjectWorkspace[]> {
+  const materias = getLocalMaterias(userId)
+  const materiasMap = new Map(materias.map(m => [m.$id, m]))
+
   try {
     const queries = [Query.equal('user_id', userId)]
     if (periodId) {
@@ -153,15 +156,26 @@ export async function listSubjectWorkspaces(userId: string, periodId?: string): 
     )
     const docs = response.documents as unknown as SubjectWorkspace[]
     if (docs.length > 0) {
+      const enrichedDocs = docs.map(d => ({
+        ...d,
+        materia_nome: d.materia_nome || materiasMap.get(d.materia_id)?.nome || 'Disciplina de Medicina',
+        cor_override: d.cor_override || materiasMap.get(d.materia_id)?.cor || '#6366f1',
+      }))
       const currentAll = getLocalWorkspaces(userId)
       const otherPeriods = currentAll.filter(w => w.period_id !== periodId)
-      setLocalWorkspaces(userId, [...otherPeriods, ...docs])
-      return docs
+      setLocalWorkspaces(userId, [...otherPeriods, ...enrichedDocs])
+      return enrichedDocs
     }
   } catch (err) {
     console.warn('Fallback listSubjectWorkspaces:', err)
   }
-  return getLocalWorkspaces(userId, periodId)
+
+  const localWs = getLocalWorkspaces(userId, periodId)
+  return localWs.map(w => ({
+    ...w,
+    materia_nome: w.materia_nome || materiasMap.get(w.materia_id)?.nome || 'Disciplina de Medicina',
+    cor_override: w.cor_override || materiasMap.get(w.materia_id)?.cor || '#6366f1',
+  }))
 }
 
 export async function createSubjectWorkspace(userId: string, data: {
